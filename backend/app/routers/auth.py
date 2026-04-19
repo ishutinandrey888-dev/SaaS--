@@ -33,7 +33,7 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
-from app.middleware.auth import CurrentUser
+from app.middleware.auth import CurrentUser, OptionalUser
 from app.middleware.rate_limit import BruteForceError, BruteForceGuard, limiter
 from app.models.subscription import Subscription
 from app.models.user import User
@@ -44,6 +44,7 @@ from app.schemas.auth import (
     TokenResponse,
     UserOut,
 )
+from app.services import audit
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 settings = get_settings()
@@ -122,6 +123,13 @@ async def register(
 
     existing = await db.execute(select(User).where(User.email == email_norm))
     if existing.scalar_one_or_none() is not None:
+        await audit.log(
+            db,
+            action=audit.Action.AUTH_REGISTER_FAILED,
+            request=request,
+            success=False,
+            meta={"reason": "email_taken", "email": email_norm},
+        )
         raise HTTPException(status_code=409, detail="email_already_registered")
 
     user = User(
@@ -137,11 +145,26 @@ async def register(
         await db.flush()
     except IntegrityError as exc:
         await db.rollback()
+        await audit.log(
+            db,
+            action=audit.Action.AUTH_REGISTER_FAILED,
+            request=request,
+            success=False,
+            meta={"reason": "integrity_error", "email": email_norm},
+        )
         raise HTTPException(status_code=409, detail="email_already_registered") from exc
 
     # Free subscription row so every paying user has one to update later.
     db.add(Subscription(user_id=user.id, plan="free", status="active"))
     await db.flush()
+
+    await audit.log(
+        db,
+        action=audit.Action.AUTH_REGISTER,
+        request=request,
+        user=user,
+        meta={"email": email_norm},
+    )
 
     access, refresh, ttl = _issue_tokens(user)
     _set_auth_cookies(response, access, refresh)
@@ -165,6 +188,13 @@ async def login(
     try:
         await BruteForceGuard.check(db, email=email_norm, ip=ip)
     except BruteForceError as exc:
+        await audit.log(
+            db,
+            action=audit.Action.AUTH_LOGIN_LOCKED,
+            request=request,
+            success=False,
+            meta={"email": email_norm, "retry_after": exc.retry_after},
+        )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="account_locked",
@@ -179,10 +209,34 @@ async def login(
     await BruteForceGuard.record(db, email=email_norm, ip=ip, success=ok)
 
     if not ok or user is None:
+        await audit.log(
+            db,
+            action=audit.Action.AUTH_LOGIN_FAILED,
+            request=request,
+            user=user,
+            success=False,
+            meta={"email": email_norm, "reason": "invalid_credentials"},
+        )
         # Identical error for unknown email / wrong password — avoids enumeration.
         raise HTTPException(status_code=401, detail="invalid_credentials")
     if not user.is_active:
+        await audit.log(
+            db,
+            action=audit.Action.AUTH_LOGIN_FAILED,
+            request=request,
+            user=user,
+            success=False,
+            meta={"email": email_norm, "reason": "user_disabled"},
+        )
         raise HTTPException(status_code=403, detail="user_disabled")
+
+    await audit.log(
+        db,
+        action=audit.Action.AUTH_LOGIN,
+        request=request,
+        user=user,
+        meta={"email": email_norm},
+    )
 
     access, refresh, ttl = _issue_tokens(user)
     _set_auth_cookies(response, access, refresh)
@@ -206,9 +260,23 @@ async def refresh(
     try:
         payload = decode_token(token)
     except ValueError as exc:
+        await audit.log(
+            db,
+            action=audit.Action.AUTH_REFRESH_FAILED,
+            request=request,
+            success=False,
+            meta={"reason": "invalid"},
+        )
         raise HTTPException(status_code=401, detail="refresh_invalid") from exc
 
     if payload.get("type") != "refresh":
+        await audit.log(
+            db,
+            action=audit.Action.AUTH_REFRESH_FAILED,
+            request=request,
+            success=False,
+            meta={"reason": "wrong_type"},
+        )
         raise HTTPException(status_code=401, detail="wrong_token_type")
 
     sub = payload.get("sub")
@@ -219,7 +287,22 @@ async def refresh(
         await db.execute(select(User).where(User.id == sub))
     ).scalar_one_or_none()
     if user is None or not user.is_active:
+        await audit.log(
+            db,
+            action=audit.Action.AUTH_REFRESH_FAILED,
+            request=request,
+            user=sub,
+            success=False,
+            meta={"reason": "user_not_found_or_disabled"},
+        )
         raise HTTPException(status_code=401, detail="user_not_found")
+
+    await audit.log(
+        db,
+        action=audit.Action.AUTH_REFRESH,
+        request=request,
+        user=user,
+    )
 
     access, new_refresh, ttl = _issue_tokens(user)
     _set_auth_cookies(response, access, new_refresh)
@@ -230,7 +313,19 @@ async def refresh(
 # Logout
 # ---------------------------------------------------------------------
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(response: Response) -> Response:
+async def logout(
+    request: Request,
+    response: Response,
+    user: OptionalUser,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> Response:
+    # Best-effort: if the access cookie is still valid, record who logged out.
+    await audit.log(
+        db,
+        action=audit.Action.AUTH_LOGOUT,
+        request=request,
+        user=user,
+    )
     _clear_auth_cookies(response)
     response.status_code = status.HTTP_204_NO_CONTENT
     return response

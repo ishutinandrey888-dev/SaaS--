@@ -118,3 +118,11 @@ CREATE POLICY analyst_actions_owner_all ON analyst_actions
 -- LOGIN ATTEMPTS (service-role only) ----------------------------------
 ALTER TABLE login_attempts ENABLE ROW LEVEL SECURITY;
 -- intentionally no policies: client role has no access.
+
+-- AUDIT LOGS (append-only, owner may read their own) ------------------
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS audit_logs_owner_select ON audit_logs;
+CREATE POLICY audit_logs_owner_select ON audit_logs
+  FOR SELECT USING (user_id = public.current_app_user_id());
+-- no INSERT/UPDATE/DELETE policies: client role cannot write or modify.

@@ -10,6 +10,7 @@ from app.core.database import Base
 from app.models import (  # noqa: F401 -- ensure models are registered
     Ad,
     AnalystAction,
+    AuditLog,
     Campaign,
     Keyword,
     KpiSnapshot,
