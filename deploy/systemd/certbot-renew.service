@@ -1,0 +1,8 @@
+[Unit]
+Description=Renew Let's Encrypt certificates for saas-direct
+After=saas-direct.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/saas-direct/deploy
+ExecStart=/opt/saas-direct/deploy/scripts/certbot-renew.sh

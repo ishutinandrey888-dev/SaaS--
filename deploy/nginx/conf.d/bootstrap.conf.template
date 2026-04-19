@@ -1,0 +1,20 @@
+# Temporary HTTP-only config used for the first Let's Encrypt issuance,
+# before any certificate exists on disk.  Swap to app.conf afterwards.
+#
+# Copy to bootstrap.conf, then after `make certbot-issue DOMAIN=...`
+# replace with app.conf and reload nginx.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{DOMAIN}} www.{{DOMAIN}};
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 200 "bootstrap ok\n";
+        add_header Content-Type text/plain;
+    }
+}

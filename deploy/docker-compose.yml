@@ -1,0 +1,134 @@
+# Hybrid VPS deploy: Supabase = Postgres + Auth; VPS = everything else.
+#
+# Services:
+#   redis     — Celery broker/result backend, internal only.
+#   backend   — FastAPI (uvicorn), talks to Supabase via DATABASE_URL.
+#   worker    — Celery worker (report parsing, GPT analysis).
+#   beat      — Celery beat (scheduled maintenance).
+#   frontend  — Next.js "standalone" build.
+#   nginx     — TLS reverse proxy on :80/:443.
+#
+# Notes:
+#   * Postgres is NOT in this compose — it's managed by Supabase.
+#   * `deploy/.env` holds secrets; see backend/.env.example for keys.
+#   * `uploads` is a named volume mounted into backend + worker so both
+#     can read/write user-uploaded Excel reports.
+
+name: saas-direct
+
+x-backend-common: &backend_common
+  image: saas-direct-backend:latest
+  build:
+    context: ../backend
+    dockerfile: Dockerfile
+  env_file:
+    - ./.env
+  volumes:
+    - uploads:/var/app/uploads
+  depends_on:
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
+  networks:
+    - internal
+
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1000"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - internal
+
+  backend:
+    <<: *backend_common
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000
+                     --proxy-headers --forwarded-allow-ips='*'
+                     --workers 2"
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  worker:
+    <<: *backend_common
+    command: ["celery", "-A", "app.tasks.celery_app", "worker",
+              "--loglevel=info", "--concurrency=2"]
+    healthcheck:
+      test: ["CMD", "celery", "-A", "app.tasks.celery_app", "inspect", "ping", "-d", "celery@$$HOSTNAME"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  beat:
+    <<: *backend_common
+    command: ["celery", "-A", "app.tasks.celery_app", "beat",
+              "--loglevel=info"]
+
+  frontend:
+    image: saas-direct-frontend:latest
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    env_file:
+      - ./.env.frontend
+    expose:
+      - "3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - internal
+    # Until Step 11 creates frontend/Dockerfile, start compose without this
+    # service:  `docker compose up -d redis backend worker beat nginx`.
+    profiles: ["full"]
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - letsencrypt:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - internal
+
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    entrypoint: /bin/sh -c
+    # Run manually via `make certbot-issue` / `make certbot-renew`.
+    command: ["true"]
+    profiles: ["tools"]
+
+volumes:
+  redis_data:
+  uploads:
+  letsencrypt:
+  certbot_www:
+
+networks:
+  internal:
+    driver: bridge
