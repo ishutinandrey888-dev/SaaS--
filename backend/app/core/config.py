@@ -27,6 +27,13 @@ class Settings(BaseSettings):
         ..., description="Sync URL used by Alembic (admin credentials)"
     )
 
+    # Per-engine pool sizing.  Two engines × db_pool_size connections are
+    # opened at warm-up, burstable by db_max_overflow each.  Keep small
+    # when pointing at Supabase direct port (5432, ~60 conn ceiling);
+    # transaction pooler (6543) tolerates much higher.
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
+
     supabase_url: str = ""
     supabase_service_key: str = ""
     supabase_anon_key: str = ""

@@ -97,6 +97,9 @@ def _coerce_user_id(user: User | uuid.UUID | str | None) -> uuid.UUID | None:
     try:
         return uuid.UUID(str(user))
     except (TypeError, ValueError):
+        # Store NULL rather than bogus garbage (the column is nullable on
+        # purpose), but surface the misuse so it's noticed.
+        logger.warning("audit_log_invalid_user_id user=%r", user)
         return None
 
 

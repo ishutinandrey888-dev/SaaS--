@@ -9,19 +9,30 @@ Tested on Ubuntu 22.04 / 24.04, 2 vCPU / 4 GB RAM / 40 GB disk.
 ## 1. Supabase project
 
 1. Create a project at https://supabase.com.
-2. Project Settings → Database: copy the "Session mode" connection
-   string. Three URLs are needed in `deploy/.env` (admin + user + sync):
-   - `DATABASE_URL_ADMIN` — admin/postgres role (BYPASSRLS). Used by
-     Alembic + background jobs + auth/signup flows that must see all
-     rows. `postgresql+asyncpg://postgres:…?ssl=require`
-   - `DATABASE_URL_USER`  — restricted `app_user` role (NOBYPASSRLS,
-     created by step 1a below). Used for every request that operates
-     inside a user's data. `postgresql+asyncpg://app_user:…?ssl=require`
-   - `DATABASE_URL_SYNC`  — admin URL for Alembic.
-     `postgresql+psycopg2://postgres:…?sslmode=require`
+2. Project Settings → Database. Three URLs go into `deploy/.env`:
+
+   | Env var               | Supabase endpoint                 | Why              |
+   |-----------------------|-----------------------------------|------------------|
+   | `DATABASE_URL_ADMIN`  | **Transaction pooler** (port 6543) | Runtime, BYPASSRLS role. Pooler multiplexes hundreds of async clients over a handful of real connections. |
+   | `DATABASE_URL_USER`   | **Transaction pooler** (port 6543) | Runtime, NOBYPASSRLS role (created in §1a). Same reason. |
+   | `DATABASE_URL_SYNC`   | **Direct / session mode** (port 5432) | Alembic. Migrations need session-level features (advisory locks, `SET search_path`, etc.) that transaction mode strips. |
+
+   Scheme for async URLs: `postgresql+asyncpg://…?ssl=require`.
+   Scheme for the sync URL: `postgresql+psycopg2://…?sslmode=require`.
 3. Project Settings → API: copy `service_role` and `anon` keys into
    `SUPABASE_SERVICE_KEY` / `SUPABASE_ANON_KEY`.
 4. SQL editor → run `docs/rls_policies.sql` (or rely on Alembic).
+
+Why transaction pooler at runtime: direct Postgres connections are
+capped (~60 on Free). With two engines × (5 pool + 10 overflow) per
+replica **plus Celery workers**, you'd hit that ceiling with a single
+container.  The transaction pooler raises the ceiling into the hundreds
+because connections are borrowed only for the duration of a single
+transaction.  Our `set_config('request.jwt.claim.sub', …, true)` is
+transaction-local so it stays compatible.
+
+Raise `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` (env vars) only if you observe
+`QueuePool limit … overflow … reached` warnings in logs.
 
 ### 1a. Create the restricted `app_user` role (one-time)
 
@@ -48,8 +59,9 @@ SELECT rolname, rolbypassrls FROM pg_roles WHERE rolname = 'app_user';
 -- rolbypassrls must be `f` (false).
 ```
 
-Put the credentials into `DATABASE_URL_USER`:
-`postgresql+asyncpg://app_user:<APP_USER_PASSWORD>@<host>:5432/postgres?ssl=require`
+Put the credentials into `DATABASE_URL_USER` (use the **transaction
+pooler** endpoint, port 6543):
+`postgresql+asyncpg://app_user:<APP_USER_PASSWORD>@<host>:6543/postgres?ssl=require`
 
 ## 2. VPS bootstrap
 
