@@ -8,7 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.database import get_db
+from app.core.database import get_db_admin
 
 router = APIRouter(tags=["health"])
 settings = get_settings()
@@ -22,7 +22,7 @@ class Health(BaseModel):
 
 
 @router.get("/health", response_model=Health, status_code=status.HTTP_200_OK)
-async def health(db: AsyncSession = Depends(get_db)) -> Health:
+async def health(db: AsyncSession = Depends(get_db_admin)) -> Health:
     db_state = "ok"
     try:
         await asyncio.wait_for(db.execute(text("SELECT 1")), timeout=2.0)

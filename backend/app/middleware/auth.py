@@ -19,7 +19,7 @@ from fastapi.security import HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
+from app.core.database import get_db_admin
 from app.core.security import decode_token
 from app.models.user import User
 
@@ -43,7 +43,7 @@ def _extract_token(request: Request) -> str | None:
 
 async def get_current_user(
     request: Request,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: Annotated[AsyncSession, Depends(get_db_admin)],
 ) -> User:
     token = _extract_token(request)
     if not token:
@@ -93,7 +93,7 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 
 async def get_optional_user(
     request: Request,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: Annotated[AsyncSession, Depends(get_db_admin)],
 ) -> User | None:
     """Variant that returns None when no/invalid token is provided."""
     if not _extract_token(request):

@@ -15,8 +15,17 @@ class Settings(BaseSettings):
 
     env: Literal["dev", "staging", "prod"] = "dev"
 
-    database_url: str = Field(..., description="Async SQLAlchemy URL (asyncpg)")
-    database_url_sync: str = Field(..., description="Sync URL used by Alembic")
+    # Two async engines — see app.core.database.  Admin bypasses RLS
+    # (service/owner role); user does NOT bypass RLS (restricted role).
+    database_url_admin: str = Field(
+        ..., description="Async SQLAlchemy URL for the BYPASSRLS service role"
+    )
+    database_url_user: str = Field(
+        ..., description="Async SQLAlchemy URL for the NOBYPASSRLS app_user role"
+    )
+    database_url_sync: str = Field(
+        ..., description="Sync URL used by Alembic (admin credentials)"
+    )
 
     supabase_url: str = ""
     supabase_service_key: str = ""

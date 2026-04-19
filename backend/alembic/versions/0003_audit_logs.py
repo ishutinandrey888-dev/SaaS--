@@ -24,8 +24,10 @@ def upgrade() -> None:
         "audit_logs",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True,
                   server_default=sa.text("gen_random_uuid()")),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True),
-                  sa.ForeignKey("users.id", ondelete="SET NULL")),
+        # No FK to users.id on purpose: audit rows are written in their
+        # own transaction (so failed ops still produce a record), and
+        # they must survive user deletion for compliance.
+        sa.Column("user_id", postgresql.UUID(as_uuid=True)),
         sa.Column("action", sa.String(length=64), nullable=False),
         sa.Column("resource_type", sa.String(length=64)),
         sa.Column("resource_id", postgresql.UUID(as_uuid=True)),

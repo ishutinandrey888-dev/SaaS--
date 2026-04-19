@@ -1,31 +1,34 @@
 """Authentication endpoints.
 
+Uses `AdminDB` — a session on `engine_admin` (BYPASSRLS).  Auth operates
+on users that may not exist yet (register) or on the global
+`login_attempts` table, neither of which fit the RLS user-scoped model.
+
 Token strategy:
-  * Short-lived access JWT (default 15m) in `Authorization: Bearer`
-    header.  We also mirror it into an `access_token` httpOnly cookie
-    so the Next.js app can call SSE endpoints without a manual header.
-  * Long-lived refresh JWT (default 30d) in a `refresh_token`
-    httpOnly cookie scoped to `/auth/refresh`, so XHR from other paths
-    can't inadvertently send it.
-  * Refresh rotates on every use: old refresh token is replaced by a
-    new one, and the new access token is issued alongside.
+  * Short-lived access JWT (default 15m) in `Authorization: Bearer`.
+    Mirrored into an `access_token` httpOnly cookie so SSE endpoints
+    can be hit without a manual header.
+  * Long-lived refresh JWT (default 30d) in a `refresh_token` httpOnly
+    cookie scoped to `/auth/refresh`.
+  * Refresh rotates on every use.
 
 Brute-force protection lives in `BruteForceGuard` (per email+IP).
-Per-IP edge throttling is applied via slowapi decorators below; nginx
-adds an outer 5r/s limit for /auth/* as a safety net.
+Per-IP edge throttling applies via slowapi decorators below; nginx
+adds an outer safety net.
+
+Audit events are written to `audit_logs` in their own transaction via
+`services.audit.log`, so failed attempts are recorded even when this
+handler's transaction rolls back.
 """
 
 from __future__ import annotations
 
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.core.database import get_db
+from app.core.database import AdminDB
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -62,9 +65,6 @@ def _client_ip(request: Request) -> str | None:
 
 
 def _cookie_kwargs(*, max_age: int, path: str) -> dict:
-    # Secure cookies in every non-dev environment.  SameSite=lax is the
-    # right balance for a same-origin SPA served from the same domain
-    # as the API (which is our nginx layout).
     return dict(
         httponly=True,
         secure=settings.env != "dev",
@@ -78,10 +78,7 @@ def _set_auth_cookies(response: Response, access: str, refresh: str) -> None:
     response.set_cookie(
         _ACCESS_COOKIE,
         access,
-        **_cookie_kwargs(
-            max_age=settings.jwt_access_ttl_minutes * 60,
-            path="/",
-        ),
+        **_cookie_kwargs(max_age=settings.jwt_access_ttl_minutes * 60, path="/"),
     )
     response.set_cookie(
         _REFRESH_COOKIE,
@@ -117,14 +114,13 @@ async def register(
     request: Request,
     response: Response,
     payload: RegisterRequest,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: AdminDB,
 ) -> TokenResponse:
     email_norm = payload.email.strip().lower()
 
     existing = await db.execute(select(User).where(User.email == email_norm))
     if existing.scalar_one_or_none() is not None:
         await audit.log(
-            db,
             action=audit.Action.AUTH_REGISTER_FAILED,
             request=request,
             success=False,
@@ -146,7 +142,6 @@ async def register(
     except IntegrityError as exc:
         await db.rollback()
         await audit.log(
-            db,
             action=audit.Action.AUTH_REGISTER_FAILED,
             request=request,
             success=False,
@@ -159,7 +154,6 @@ async def register(
     await db.flush()
 
     await audit.log(
-        db,
         action=audit.Action.AUTH_REGISTER,
         request=request,
         user=user,
@@ -180,7 +174,7 @@ async def login(
     request: Request,
     response: Response,
     payload: LoginRequest,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: AdminDB,
 ) -> TokenResponse:
     email_norm = payload.email.strip().lower()
     ip = _client_ip(request)
@@ -189,7 +183,6 @@ async def login(
         await BruteForceGuard.check(db, email=email_norm, ip=ip)
     except BruteForceError as exc:
         await audit.log(
-            db,
             action=audit.Action.AUTH_LOGIN_LOCKED,
             request=request,
             success=False,
@@ -210,18 +203,16 @@ async def login(
 
     if not ok or user is None:
         await audit.log(
-            db,
             action=audit.Action.AUTH_LOGIN_FAILED,
             request=request,
             user=user,
             success=False,
             meta={"email": email_norm, "reason": "invalid_credentials"},
         )
-        # Identical error for unknown email / wrong password — avoids enumeration.
+        # Identical error for unknown email / wrong password — no enumeration.
         raise HTTPException(status_code=401, detail="invalid_credentials")
     if not user.is_active:
         await audit.log(
-            db,
             action=audit.Action.AUTH_LOGIN_FAILED,
             request=request,
             user=user,
@@ -231,7 +222,6 @@ async def login(
         raise HTTPException(status_code=403, detail="user_disabled")
 
     await audit.log(
-        db,
         action=audit.Action.AUTH_LOGIN,
         request=request,
         user=user,
@@ -251,7 +241,7 @@ async def login(
 async def refresh(
     request: Request,
     response: Response,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: AdminDB,
 ) -> TokenResponse:
     token = request.cookies.get(_REFRESH_COOKIE)
     if not token:
@@ -261,7 +251,6 @@ async def refresh(
         payload = decode_token(token)
     except ValueError as exc:
         await audit.log(
-            db,
             action=audit.Action.AUTH_REFRESH_FAILED,
             request=request,
             success=False,
@@ -271,7 +260,6 @@ async def refresh(
 
     if payload.get("type") != "refresh":
         await audit.log(
-            db,
             action=audit.Action.AUTH_REFRESH_FAILED,
             request=request,
             success=False,
@@ -288,7 +276,6 @@ async def refresh(
     ).scalar_one_or_none()
     if user is None or not user.is_active:
         await audit.log(
-            db,
             action=audit.Action.AUTH_REFRESH_FAILED,
             request=request,
             user=sub,
@@ -298,7 +285,6 @@ async def refresh(
         raise HTTPException(status_code=401, detail="user_not_found")
 
     await audit.log(
-        db,
         action=audit.Action.AUTH_REFRESH,
         request=request,
         user=user,
@@ -317,11 +303,9 @@ async def logout(
     request: Request,
     response: Response,
     user: OptionalUser,
-    db: Annotated[AsyncSession, Depends(get_db)],
 ) -> Response:
     # Best-effort: if the access cookie is still valid, record who logged out.
     await audit.log(
-        db,
         action=audit.Action.AUTH_LOGOUT,
         request=request,
         user=user,

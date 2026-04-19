@@ -1,9 +1,14 @@
 """Helpers for writing to `audit_logs`.
 
-Fails-open: if logging raises (e.g. DB disconnect), we log a warning and
-continue rather than surfacing an error to the caller.  Losing an audit
-line is preferable to failing a business request — the application log
-still captures the event.
+Design points:
+  * Opens its own transaction on `engine_admin` and commits
+    immediately, so the audit record survives rollbacks of the caller's
+    transaction (e.g. failed logins, duplicate-email registrations).
+  * No foreign key on `user_id` — see `models.audit_log` — so we can
+    safely write rows for users that don't exist yet (failed register)
+    or that were later deleted.
+  * Fails-open: if persistence fails we warn to stderr and return.
+    Losing an audit line is preferable to failing the business request.
 """
 
 from __future__ import annotations
@@ -13,8 +18,8 @@ import uuid
 from typing import Any
 
 from fastapi import Request
-from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import AsyncSessionAdmin
 from app.models.audit_log import AuditLog
 from app.models.user import User
 
@@ -82,9 +87,7 @@ def _request_id(request: Request | None) -> str | None:
     return None
 
 
-def _coerce_user_id(
-    user: User | uuid.UUID | str | None,
-) -> uuid.UUID | None:
+def _coerce_user_id(user: User | uuid.UUID | str | None) -> uuid.UUID | None:
     if user is None:
         return None
     if isinstance(user, User):
@@ -98,7 +101,6 @@ def _coerce_user_id(
 
 
 async def log(
-    db: AsyncSession,
     *,
     action: str,
     request: Request | None = None,
@@ -108,11 +110,15 @@ async def log(
     success: bool = True,
     meta: dict[str, Any] | None = None,
 ) -> None:
-    """Insert an audit row.  Never raises to the caller."""
+    """Insert a single audit row in its own transaction.  Never raises."""
     try:
         rid = None
         if resource_id is not None:
-            rid = resource_id if isinstance(resource_id, uuid.UUID) else uuid.UUID(str(resource_id))
+            rid = (
+                resource_id
+                if isinstance(resource_id, uuid.UUID)
+                else uuid.UUID(str(resource_id))
+            )
 
         entry = AuditLog(
             user_id=_coerce_user_id(user),
@@ -125,7 +131,9 @@ async def log(
             success=success,
             meta=meta,
         )
-        db.add(entry)
-        await db.flush()
+
+        async with AsyncSessionAdmin() as session:
+            async with session.begin():
+                session.add(entry)
     except Exception:  # noqa: BLE001 -- fails-open by design
         logger.warning("audit_log_failed action=%s", action, exc_info=True)

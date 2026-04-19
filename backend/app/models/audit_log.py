@@ -4,14 +4,11 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, func
+from sqlalchemy import Boolean, DateTime, String, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
-
-if TYPE_CHECKING:
-    from app.models.user import User
 
 
 class AuditLog(Base):
@@ -33,11 +30,12 @@ class AuditLog(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
 
-    # Nullable: pre-auth events (failed register, login for unknown email)
-    # still need a record.
+    # Nullable and intentionally NO foreign key: audit rows are written
+    # in their own transaction (so failed/rolled-back operations still
+    # produce a record), and we want them to survive user deletion for
+    # compliance / investigation purposes.
     user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="SET NULL"),
         index=True,
     )
 
@@ -63,5 +61,3 @@ class AuditLog(Base):
         nullable=False,
         index=True,
     )
-
-    user: Mapped["User | None"] = relationship("User")

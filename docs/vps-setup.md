@@ -10,12 +10,46 @@ Tested on Ubuntu 22.04 / 24.04, 2 vCPU / 4 GB RAM / 40 GB disk.
 
 1. Create a project at https://supabase.com.
 2. Project Settings → Database: copy the "Session mode" connection
-   string. Two URLs are needed in `deploy/.env`:
-   - `DATABASE_URL`      — use `postgresql+asyncpg://…?ssl=require`
-   - `DATABASE_URL_SYNC` — use `postgresql+psycopg2://…?sslmode=require`
+   string. Three URLs are needed in `deploy/.env` (admin + user + sync):
+   - `DATABASE_URL_ADMIN` — admin/postgres role (BYPASSRLS). Used by
+     Alembic + background jobs + auth/signup flows that must see all
+     rows. `postgresql+asyncpg://postgres:…?ssl=require`
+   - `DATABASE_URL_USER`  — restricted `app_user` role (NOBYPASSRLS,
+     created by step 1a below). Used for every request that operates
+     inside a user's data. `postgresql+asyncpg://app_user:…?ssl=require`
+   - `DATABASE_URL_SYNC`  — admin URL for Alembic.
+     `postgresql+psycopg2://postgres:…?sslmode=require`
 3. Project Settings → API: copy `service_role` and `anon` keys into
    `SUPABASE_SERVICE_KEY` / `SUPABASE_ANON_KEY`.
 4. SQL editor → run `docs/rls_policies.sql` (or rely on Alembic).
+
+### 1a. Create the restricted `app_user` role (one-time)
+
+Without this role, RLS is a no-op: the default `postgres` role has
+`BYPASSRLS`, so `SET LOCAL request.jwt.claim.sub` has no effect.
+`docs/db-roles.sql` creates an `app_user` role with `NOBYPASSRLS` and
+grants it DML-only rights on `public`.
+
+```bash
+# Generate a strong password and stash it in deploy/.env as APP_USER_PASSWORD
+python3 -c 'import secrets; print(secrets.token_urlsafe(32))'
+
+# Run the script as the project owner (`postgres`). Locally via psql:
+APP_USER_PASSWORD='paste-from-above' \
+  psql "$DATABASE_URL_SYNC_NO_DRIVER" -f docs/db-roles.sql
+# Or paste the contents into Supabase → SQL editor (replace the
+# \set line with a literal password).
+```
+
+Verify in psql:
+
+```sql
+SELECT rolname, rolbypassrls FROM pg_roles WHERE rolname = 'app_user';
+-- rolbypassrls must be `f` (false).
+```
+
+Put the credentials into `DATABASE_URL_USER`:
+`postgresql+asyncpg://app_user:<APP_USER_PASSWORD>@<host>:5432/postgres?ssl=require`
 
 ## 2. VPS bootstrap
 
@@ -139,9 +173,24 @@ Heavier (optional): add `grafana-agent` or `loki+grafana` later.
 | `make certbot-issue DOMAIN=…`   | Issue Let's Encrypt cert                |
 | `make certbot-renew`            | Renew cert (runs daily via timer)       |
 
-## Why RLS still stays on
+## Why two database engines
 
-Even though backend uses `SUPABASE_SERVICE_KEY` (which bypasses RLS),
-we keep RLS enabled so that if anything **ever** connects using the
-`anon` key (say, a future admin tool using Supabase's client libs),
-it can't read other users' rows. Belt-and-suspenders, zero cost.
+The backend opens two async SQLAlchemy engines against the same
+Postgres:
+
+| Engine         | Role (NOBYPASSRLS?) | Used by                                  |
+|----------------|---------------------|------------------------------------------|
+| `engine_admin` | `postgres` (no)     | Auth (register/login), brute-force guard, audit writes, migrations, admin jobs |
+| `engine_user`  | `app_user` (yes)    | Every request that reads/writes a user's own rows (campaigns, keywords, ads, reports, …) |
+
+Each `engine_user` session runs
+`SELECT set_config('request.jwt.claim.sub', <user-id>, true)`
+at the start of its transaction, and the RLS policies compare that
+setting against each row's `user_id`. Because `app_user` does **not**
+have `BYPASSRLS`, Postgres actually enforces the policy — a bug that
+forgets a `WHERE user_id = …` filter still cannot leak data across
+tenants.
+
+Auth endpoints use `engine_admin` on purpose: registration creates a
+row that doesn't yet have a JWT, and brute-force/audit rows aren't
+scoped to a single user.
