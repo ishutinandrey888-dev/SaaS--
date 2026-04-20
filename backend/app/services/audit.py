@@ -48,6 +48,8 @@ class Action:
     EXPORT_XLSX = "export.xlsx"
     EXPORT_ACTIONS_XLSX = "export.actions_xlsx"
 
+    EXCEL_UPLOAD = "excel.upload"
+
     ANALYST_UPLOAD = "analyst.upload_report"
     ANALYST_APPROVE = "analyst.approve_action"
     ANALYST_REJECT = "analyst.reject_action"
