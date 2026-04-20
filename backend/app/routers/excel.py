@@ -19,7 +19,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, HTTPException, Request, Response, UploadFile, status
 
 from app.core.config import get_settings
 from app.core.database import UserDB
@@ -32,6 +32,7 @@ from app.schemas.excel import (
     AdResult,
     CampaignSummary,
     ExcelUploadResponse,
+    ExportRequest,
     Insights,
     ParseError,
     Summary,
@@ -39,6 +40,7 @@ from app.schemas.excel import (
 from app.services import audit
 from app.services.ai_ads import improve_ad
 from app.services.audit_ads import analyze_ad
+from app.services.excel_export import build_direct_xlsx, slugify_filename
 from app.services.excel_import import parse_direct_excel
 
 router = APIRouter(prefix="/excel", tags=["excel"])
@@ -200,3 +202,37 @@ async def upload_excel(
         errors=[ParseError(**e) for e in errors_raw],
         insights=insights,
     )
+
+
+_XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+@router.post(
+    "/export",
+    status_code=status.HTTP_200_OK,
+    responses={200: {"content": {_XLSX_MIME: {}}}},
+)
+@limiter.limit("20/minute")
+async def export_excel(
+    request: Request,
+    payload: ExportRequest,
+    user: CurrentUser,
+    db: UserDB,
+) -> Response:
+    """Build a Yandex Direct-shaped XLSX from the given ads and return it."""
+    _ = db
+
+    ads = [ad.model_dump() for ad in payload.ads]
+    data = build_direct_xlsx(ads)
+
+    name = slugify_filename(payload.filename)
+    headers = {"Content-Disposition": f'attachment; filename="{name}.xlsx"'}
+
+    await audit.log(
+        action=audit.Action.EXPORT_XLSX,
+        request=request,
+        user=user,
+        meta={"filename": name, "ads": len(ads)},
+    )
+
+    return Response(content=data, media_type=_XLSX_MIME, headers=headers)

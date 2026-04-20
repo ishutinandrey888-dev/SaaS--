@@ -61,3 +61,17 @@ class ExcelUploadResponse(BaseModel):
     ads: list[AdResult]
     errors: list[ParseError] = Field(default_factory=list)
     insights: Insights
+
+
+class AdForExport(BaseModel):
+    campaign: str = ""
+    group: str = ""
+    headline: str = Field(min_length=1)
+    headline2: str | None = None
+    text: str = Field(min_length=1)
+    keywords: list[str] = Field(default_factory=list)
+
+
+class ExportRequest(BaseModel):
+    ads: list[AdForExport] = Field(min_length=1, max_length=5000)
+    filename: str | None = None
