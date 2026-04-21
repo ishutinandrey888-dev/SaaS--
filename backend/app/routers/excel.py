@@ -38,6 +38,8 @@ from app.schemas.excel import (
     AdImproved,
     AdOriginal,
     AdResult,
+    CampaignAnalytics,
+    CampaignIssue,
     CampaignSummary,
     ExcelUploadResponse,
     ExportRequest,
@@ -51,6 +53,7 @@ from app.schemas.excel import (
 from app.services import audit, billing
 from app.services.ai_ads import improve_ad
 from app.services.audit_ads import analyze_ad
+from app.services.campaign_analytics import analyze_campaigns
 from app.services.excel_export import build_direct_xlsx, slugify_filename
 from app.services.excel_import import parse_direct_excel
 
@@ -195,7 +198,27 @@ def _paywall_only_response(
         limits=_snapshot_to_limits(plan_id),
         usage=_snapshot_to_usage(usage),
         paywall=_maybe_paywall_to_schema(pw),
+        campaign_analytics=[],
     )
+
+
+def _campaigns_to_schema(
+    raw: list[dict[str, Any]],
+) -> list[CampaignAnalytics]:
+    return [
+        CampaignAnalytics(
+            name=c["name"],
+            groups=c["groups"],
+            ads_count=c["ads_count"],
+            improved_count=c["improved_count"],
+            avg_score=c["avg_score"],
+            weak_ads_percent=c["weak_ads_percent"],
+            top_issues=[CampaignIssue(**i) for i in c["top_issues"]],
+            recommendations=c["recommendations"],
+            tone=c["tone"],
+        )
+        for c in raw
+    ]
 
 
 @router.post(
@@ -313,6 +336,10 @@ async def upload_excel(
         campaigns=[CampaignSummary(**c) for c in campaigns_raw],
     )
     insights = _build_insights(audits)
+    improved_flags = [r.improved is not None for r in ad_results]
+    campaign_analytics = _campaigns_to_schema(
+        analyze_campaigns(ads_kept, audits, improved_flags=improved_flags)
+    )
 
     # --- Write meters + history --------------------------------------
     await billing.consume_usage(
@@ -378,6 +405,7 @@ async def upload_excel(
         limits=_snapshot_to_limits(plan_id),
         usage=_snapshot_to_usage(usage_after),
         paywall=_maybe_paywall_to_schema(paywall),
+        campaign_analytics=campaign_analytics,
     )
 
 

@@ -11,6 +11,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { AdCard } from "@/components/ad-card";
+import { CampaignAnalyticsList } from "@/components/campaign-analytics";
 import { PaywallModal } from "@/components/paywall-modal";
 import { SummaryPanel } from "@/components/summary";
 import { Button } from "@/components/ui/button";
@@ -262,6 +263,12 @@ export default function ResultPage() {
         {!quotaBlocked && (
           <section className="mt-6">
             <SummaryPanel summary={data.summary} insights={data.insights} />
+          </section>
+        )}
+
+        {!quotaBlocked && data.campaign_analytics.length > 0 && (
+          <section className="mt-8">
+            <CampaignAnalyticsList campaigns={data.campaign_analytics} />
           </section>
         )}
 

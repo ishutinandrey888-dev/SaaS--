@@ -83,6 +83,26 @@ export interface Paywall {
   upgrade_hint: string | null;
 }
 
+export interface CampaignIssue {
+  key: string;
+  label: string;
+  count: number;
+}
+
+export type CampaignTone = "good" | "warn" | "bad";
+
+export interface CampaignAnalytics {
+  name: string;
+  groups: string[];
+  ads_count: number;
+  improved_count: number;
+  avg_score: number;
+  weak_ads_percent: number;
+  top_issues: CampaignIssue[];
+  recommendations: string[];
+  tone: CampaignTone;
+}
+
 export interface ExcelUploadResponse {
   summary: Summary;
   ads: AdResult[];
@@ -92,6 +112,7 @@ export interface ExcelUploadResponse {
   limits: Limits;
   usage: Usage;
   paywall: Paywall | null;
+  campaign_analytics: CampaignAnalytics[];
 }
 
 export interface UpgradeIntentRequest {

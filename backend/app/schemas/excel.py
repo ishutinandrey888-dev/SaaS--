@@ -43,6 +43,24 @@ class CampaignSummary(BaseModel):
     ads_count: int
 
 
+class CampaignIssue(BaseModel):
+    key: str
+    label: str
+    count: int
+
+
+class CampaignAnalytics(BaseModel):
+    name: str
+    groups: list[str] = Field(default_factory=list)
+    ads_count: int
+    improved_count: int
+    avg_score: float
+    weak_ads_percent: int = Field(ge=0, le=100)
+    top_issues: list[CampaignIssue] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
+    tone: str  # "good" | "warn" | "bad"
+
+
 class Summary(BaseModel):
     total_ads: int
     total_campaigns: int
@@ -86,6 +104,7 @@ class ExcelUploadResponse(BaseModel):
     limits: Limits
     usage: Usage
     paywall: Paywall | None = None
+    campaign_analytics: list[CampaignAnalytics] = Field(default_factory=list)
 
 
 class AdForExport(BaseModel):
