@@ -1,4 +1,10 @@
-import type { ExcelUploadResponse, ExportRequest } from "./types";
+import type {
+  ExcelUploadResponse,
+  ExportRequest,
+  PlansResponse,
+  UpgradeIntentRequest,
+  UpgradeIntentResponse,
+} from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -50,6 +56,27 @@ export async function exportExcel(request: ExportRequest): Promise<Blob> {
   });
   if (!response.ok) await raise(response);
   return await response.blob();
+}
+
+export async function fetchPlans(): Promise<PlansResponse> {
+  const response = await fetch(`${API_BASE}/billing/plans`, {
+    credentials: "include",
+  });
+  if (!response.ok) await raise(response);
+  return (await response.json()) as PlansResponse;
+}
+
+export async function postUpgradeIntent(
+  body: UpgradeIntentRequest,
+): Promise<UpgradeIntentResponse> {
+  const response = await fetch(`${API_BASE}/billing/upgrade-intent`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) await raise(response);
+  return (await response.json()) as UpgradeIntentResponse;
 }
 
 export function downloadBlob(blob: Blob, filename: string) {

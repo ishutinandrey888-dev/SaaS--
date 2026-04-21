@@ -53,11 +53,70 @@ export interface ParseError {
   message: string;
 }
 
+export type PlanId = "free" | "starter" | "pro";
+
+export interface Limits {
+  plan: PlanId;
+  uploads: number | null;
+  ai_ads: number | null;
+  max_ads_per_upload: number;
+  watermark: boolean;
+}
+
+export interface Usage {
+  uploads_used: number;
+  ai_ads_used: number;
+  ai_ads_remaining: number | null;
+}
+
+export type PaywallTrigger =
+  | "after_analysis"
+  | "on_improve_all"
+  | "on_upload_exhausted"
+  | "on_ads_per_upload"
+  | "on_export_over_limit";
+
+export interface Paywall {
+  trigger: PaywallTrigger;
+  message: string;
+  cta: string;
+  upgrade_hint: string | null;
+}
+
 export interface ExcelUploadResponse {
   summary: Summary;
   ads: AdResult[];
   errors: ParseError[];
   insights: Insights;
+  plan: PlanId;
+  limits: Limits;
+  usage: Usage;
+  paywall: Paywall | null;
+}
+
+export interface UpgradeIntentRequest {
+  plan: PlanId;
+  trigger: string;
+  context?: Record<string, string | number | boolean | null>;
+}
+
+export interface UpgradeIntentResponse {
+  accepted: boolean;
+  message: string;
+}
+
+export interface PlanInfo {
+  id: PlanId;
+  label: string;
+  price_rub: number;
+  uploads_per_month: number | null;
+  max_ads_per_upload: number;
+  ai_ads_per_period: number | null;
+  watermark: boolean;
+}
+
+export interface PlansResponse {
+  plans: PlanInfo[];
 }
 
 export interface AdForExport {

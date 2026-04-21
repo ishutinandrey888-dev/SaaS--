@@ -77,8 +77,19 @@ def auth_client(test_user, monkeypatch):
         return test_user
 
     async def _db_dep():
+        class _FakeResult:
+            def first(self):
+                return None
+
+            def scalar(self):
+                return None
+
         class _FakeSession:
             info: dict = {}
+
+            async def execute(self, *_args, **_kwargs):
+                return _FakeResult()
+
         yield _FakeSession()
 
     async def _audit_noop(**_kwargs):

@@ -56,11 +56,36 @@ class Insights(BaseModel):
     estimated_ctr_loss: str
 
 
+class Limits(BaseModel):
+    plan: str
+    uploads: int | None
+    ai_ads: int | None
+    max_ads_per_upload: int
+    watermark: bool = False
+
+
+class Usage(BaseModel):
+    uploads_used: int
+    ai_ads_used: int
+    ai_ads_remaining: int | None
+
+
+class Paywall(BaseModel):
+    trigger: str
+    message: str
+    cta: str
+    upgrade_hint: str | None = None
+
+
 class ExcelUploadResponse(BaseModel):
     summary: Summary
     ads: list[AdResult]
     errors: list[ParseError] = Field(default_factory=list)
     insights: Insights
+    plan: str = "free"
+    limits: Limits
+    usage: Usage
+    paywall: Paywall | None = None
 
 
 class AdForExport(BaseModel):
