@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CheckCircle2, Sparkles, Timer } from "lucide-react";
 import { Upload } from "@/components/upload";
 
@@ -26,7 +27,15 @@ export default function HomePage() {
         <div className="text-sm font-semibold tracking-tight text-slate-900">
           SaaS Direct
         </div>
-        <div className="text-xs text-slate-500">MVP</div>
+        <nav className="flex items-center gap-4 text-xs text-slate-500">
+          <Link
+            href="/dashboard"
+            className="hover:text-slate-900"
+          >
+            Дашборд
+          </Link>
+          <span>MVP</span>
+        </nav>
       </header>
 
       <section className="mt-20 flex flex-col items-center text-center">

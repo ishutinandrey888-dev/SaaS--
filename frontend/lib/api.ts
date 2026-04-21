@@ -1,4 +1,5 @@
 import type {
+  DashboardResponse,
   ExcelUploadResponse,
   ExportRequest,
   PlansResponse,
@@ -56,6 +57,14 @@ export async function exportExcel(request: ExportRequest): Promise<Blob> {
   });
   if (!response.ok) await raise(response);
   return await response.blob();
+}
+
+export async function fetchDashboard(): Promise<DashboardResponse> {
+  const response = await fetch(`${API_BASE}/dashboard`, {
+    credentials: "include",
+  });
+  if (!response.ok) await raise(response);
+  return (await response.json()) as DashboardResponse;
 }
 
 export async function fetchPlans(): Promise<PlansResponse> {

@@ -16,6 +16,7 @@ from app.middleware.rate_limit import limiter, ratelimit_exceeded_handler
 from app.middleware.sanitize import SanitizeMiddleware
 from app.routers import auth as auth_router
 from app.routers import billing as billing_router
+from app.routers import dashboard as dashboard_router
 from app.routers import excel as excel_router
 from app.routers import health as health_router
 
@@ -82,6 +83,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router.router)
     app.include_router(excel_router.router)
     app.include_router(billing_router.router)
+    app.include_router(dashboard_router.router)
 
     @app.middleware("http")
     async def attach_limiter_state(request: Request, call_next):

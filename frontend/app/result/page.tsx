@@ -233,7 +233,15 @@ export default function ResultPage() {
             <ArrowLeft className="h-4 w-4" />
             К загрузке
           </Link>
-          <span className="truncate text-xs text-slate-400">{filename}</span>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/dashboard"
+              className="text-xs text-slate-500 hover:text-slate-900"
+            >
+              Дашборд
+            </Link>
+            <span className="truncate text-xs text-slate-400">{filename}</span>
+          </div>
         </header>
 
         <section className="mt-8">

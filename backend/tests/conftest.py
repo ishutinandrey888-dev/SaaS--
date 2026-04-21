@@ -77,12 +77,22 @@ def auth_client(test_user, monkeypatch):
         return test_user
 
     async def _db_dep():
+        class _FakeMappings:
+            def all(self):
+                return []
+
+            def first(self):
+                return None
+
         class _FakeResult:
             def first(self):
                 return None
 
             def scalar(self):
                 return None
+
+            def mappings(self):
+                return _FakeMappings()
 
         class _FakeSession:
             info: dict = {}

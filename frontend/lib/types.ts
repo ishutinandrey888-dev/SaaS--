@@ -119,6 +119,33 @@ export interface PlansResponse {
   plans: PlanInfo[];
 }
 
+export interface HistoryEntry {
+  id: string;
+  filename: string;
+  total_ads: number;
+  total_campaigns: number;
+  improved_count: number;
+  weak_ads_percent: number;
+  avg_score: number;
+  created_at: string;
+}
+
+export interface HistoryTotals {
+  uploads: number;
+  ads: number;
+  improved: number;
+  avg_score: number;
+}
+
+export interface DashboardResponse {
+  plan: PlanId;
+  limits: Limits;
+  usage: Usage;
+  totals: HistoryTotals;
+  history: HistoryEntry[];
+  history_days: number | null;
+}
+
 export interface AdForExport {
   campaign: string;
   group: string;
