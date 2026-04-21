@@ -209,3 +209,37 @@ export interface ImproveAllResponse {
   usage: Usage;
   paywall: Paywall | null;
 }
+
+export type StartTone =
+  | "neutral"
+  | "friendly"
+  | "confident"
+  | "premium"
+  | "playful";
+
+export interface StartBrief {
+  product: string;
+  audience: string;
+  region: string;
+  keywords: string[];
+  tone: StartTone;
+  count: number;
+}
+
+export interface StartGeneratedAd {
+  headline: string;
+  headline2: string | null;
+  text: string;
+  keywords: string[];
+  reasoning: string;
+}
+
+export interface StartGenerateResponse {
+  ads: StartGeneratedAd[];
+  requested_count: number;
+  generated_count: number;
+  plan: PlanId;
+  limits: Limits;
+  usage: Usage;
+  paywall: Paywall | null;
+}

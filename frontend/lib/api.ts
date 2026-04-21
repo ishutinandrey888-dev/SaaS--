@@ -8,6 +8,8 @@ import type {
   JobState,
   JobStateResponse,
   PlansResponse,
+  StartBrief,
+  StartGenerateResponse,
   UpgradeIntentRequest,
   UpgradeIntentResponse,
 } from "./types";
@@ -121,6 +123,19 @@ export async function improveAll(
   });
   if (!response.ok) await raise(response);
   return (await response.json()) as ImproveAllResponse;
+}
+
+export async function generateStartAds(
+  brief: StartBrief,
+): Promise<StartGenerateResponse> {
+  const response = await fetch(`${API_BASE}/start/generate`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(brief),
+  });
+  if (!response.ok) await raise(response);
+  return (await response.json()) as StartGenerateResponse;
 }
 
 export async function exportExcel(request: ExportRequest): Promise<Blob> {

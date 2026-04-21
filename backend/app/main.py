@@ -19,6 +19,7 @@ from app.routers import billing as billing_router
 from app.routers import dashboard as dashboard_router
 from app.routers import excel as excel_router
 from app.routers import health as health_router
+from app.routers import start as start_router
 
 settings = get_settings()
 
@@ -82,6 +83,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router.router)
     app.include_router(auth_router.router)
     app.include_router(excel_router.router)
+    app.include_router(start_router.router)
     app.include_router(billing_router.router)
     app.include_router(dashboard_router.router)
 

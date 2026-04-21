@@ -50,6 +50,7 @@ class Action:
 
     EXCEL_UPLOAD = "excel.upload"
     EXCEL_IMPROVE_ALL = "excel.improve_all"
+    START_GENERATE = "start.generate"
 
     ANALYST_UPLOAD = "analyst.upload_report"
     ANALYST_APPROVE = "analyst.approve_action"
