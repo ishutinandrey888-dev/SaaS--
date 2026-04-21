@@ -7,6 +7,7 @@ import type {
   JobCreatedResponse,
   JobState,
   JobStateResponse,
+  Me,
   PlansResponse,
   UpgradeIntentRequest,
   UpgradeIntentResponse,
@@ -161,6 +162,22 @@ export async function postUpgradeIntent(
   });
   if (!response.ok) await raise(response);
   return (await response.json()) as UpgradeIntentResponse;
+}
+
+export async function fetchMe(): Promise<Me> {
+  const response = await fetch(`${API_BASE}/auth/me`, {
+    credentials: "include",
+  });
+  if (!response.ok) await raise(response);
+  return (await response.json()) as Me;
+}
+
+export async function logout(): Promise<void> {
+  const response = await fetch(`${API_BASE}/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok && response.status !== 401) await raise(response);
 }
 
 export function downloadBlob(blob: Blob, filename: string) {

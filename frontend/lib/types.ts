@@ -209,3 +209,12 @@ export interface ImproveAllResponse {
   usage: Usage;
   paywall: Paywall | null;
 }
+
+export interface Me {
+  id: string;
+  email: string;
+  full_name: string | null;
+  is_active: boolean;
+  is_verified: boolean;
+  created_at: string;
+}

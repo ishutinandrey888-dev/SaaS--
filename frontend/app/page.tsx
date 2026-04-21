@@ -28,11 +28,11 @@ export default function HomePage() {
           SaaS Direct
         </div>
         <nav className="flex items-center gap-4 text-xs text-slate-500">
-          <Link
-            href="/dashboard"
-            className="hover:text-slate-900"
-          >
+          <Link href="/dashboard" className="hover:text-slate-900">
             Дашборд
+          </Link>
+          <Link href="/settings" className="hover:text-slate-900">
+            Настройки
           </Link>
           <span>MVP</span>
         </nav>
