@@ -119,3 +119,22 @@ class AdForExport(BaseModel):
 class ExportRequest(BaseModel):
     ads: list[AdForExport] = Field(min_length=1, max_length=5000)
     filename: str | None = None
+
+
+class ImproveAllRequest(BaseModel):
+    ads: list[AdOriginal] = Field(min_length=1, max_length=500)
+
+
+class ImprovedAd(BaseModel):
+    row: int
+    improved: AdImproved
+
+
+class ImproveAllResponse(BaseModel):
+    improved: list[ImprovedAd] = Field(default_factory=list)
+    improved_count: int
+    requested_count: int
+    plan: str
+    limits: Limits
+    usage: Usage
+    paywall: Paywall | None = None

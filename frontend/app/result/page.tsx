@@ -9,6 +9,7 @@ import {
   Loader2,
   Sparkles,
   TriangleAlert,
+  Wand2,
 } from "lucide-react";
 import { AdCard } from "@/components/ad-card";
 import { CampaignAnalyticsList } from "@/components/campaign-analytics";
@@ -20,6 +21,7 @@ import {
   AuthError,
   downloadBlob,
   exportExcel,
+  improveAll,
 } from "@/lib/api";
 import type {
   AdForExport,
@@ -148,6 +150,9 @@ export default function ResultPage() {
   const [hydrated, setHydrated] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [improving, setImproving] = useState(false);
+  const [improveError, setImproveError] = useState<string | null>(null);
+  const [improveInfo, setImproveInfo] = useState<string | null>(null);
   const [paywall, setPaywall] = useState<Paywall | null>(null);
 
   useEffect(() => {
@@ -197,6 +202,13 @@ export default function ResultPage() {
   const baseName = stripExt(filename) || "improved_ads";
   const downloadName = `${baseName}-improved.xlsx`;
 
+  const unimprovedAds = data.ads.filter((ad) => !ad.improved);
+  const aiRemaining = data.usage.ai_ads_remaining;
+  const improveDisabled =
+    improving ||
+    unimprovedAds.length === 0 ||
+    aiRemaining === 0;
+
   const onDownload = async () => {
     setDownloadError(null);
     setDownloading(true);
@@ -218,6 +230,67 @@ export default function ResultPage() {
       setDownloadError(message);
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const onImproveAll = async () => {
+    if (!stored || unimprovedAds.length === 0) return;
+    setImproveError(null);
+    setImproveInfo(null);
+    setImproving(true);
+    try {
+      const response = await improveAll(
+        unimprovedAds.map((ad) => ad.original),
+      );
+      const byRow = new Map(
+        response.improved.map((item) => [item.row, item.improved]),
+      );
+
+      const mergedAds: AdResult[] = stored.data.ads.map((ad) =>
+        byRow.has(ad.original.row)
+          ? { ...ad, improved: byRow.get(ad.original.row)! }
+          : ad,
+      );
+      const improvedTotal = mergedAds.filter((a) => a.improved).length;
+
+      const nextData: ExcelUploadResponse = {
+        ...stored.data,
+        ads: mergedAds,
+        summary: {
+          ...stored.data.summary,
+          improved_count: improvedTotal,
+        },
+        usage: response.usage,
+        limits: response.limits,
+        plan: response.plan,
+        paywall: response.paywall ?? stored.data.paywall,
+      };
+      const nextStored: Stored = { ...stored, data: nextData };
+      setStored(nextStored);
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(nextStored));
+
+      if (response.improved_count === 0) {
+        setImproveInfo("AI-бюджет исчерпан — улучшить больше нечего.");
+      } else {
+        setImproveInfo(
+          `Улучшено ещё ${response.improved_count} из ${response.requested_count}.`,
+        );
+      }
+      if (response.paywall) {
+        setPaywall(response.paywall);
+      }
+    } catch (error) {
+      if (error instanceof AuthError) {
+        onAuthError();
+        return;
+      }
+      const message =
+        error instanceof ApiError
+          ? `Ошибка сервера: ${error.message}`
+          : "Не удалось улучшить объявления. Попробуйте ещё раз.";
+      setImproveError(message);
+    } finally {
+      setImproving(false);
     }
   };
 
@@ -303,18 +376,43 @@ export default function ResultPage() {
               </p>
             </div>
             <div className="flex flex-col items-end gap-1.5">
-              <Button
-                onClick={onDownload}
-                disabled={downloading || data.ads.length === 0}
-                size="lg"
-              >
-                {downloading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <Download className="h-5 w-5" />
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {unimprovedAds.length > 0 && (
+                  <Button
+                    onClick={onImproveAll}
+                    disabled={improveDisabled}
+                    variant="secondary"
+                    size="lg"
+                  >
+                    {improving ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Wand2 className="h-5 w-5" />
+                    )}
+                    {improving
+                      ? "Улучшаем…"
+                      : `Улучшить всё (${unimprovedAds.length})`}
+                  </Button>
                 )}
-                {downloading ? "Готовим файл…" : "Скачать Excel"}
-              </Button>
+                <Button
+                  onClick={onDownload}
+                  disabled={downloading || data.ads.length === 0}
+                  size="lg"
+                >
+                  {downloading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Download className="h-5 w-5" />
+                  )}
+                  {downloading ? "Готовим файл…" : "Скачать Excel"}
+                </Button>
+              </div>
+              {improveInfo && (
+                <span className="text-xs text-emerald-700">{improveInfo}</span>
+              )}
+              {improveError && (
+                <span className="text-xs text-rose-600">{improveError}</span>
+              )}
               {downloadError && (
                 <span className="text-xs text-rose-600">{downloadError}</span>
               )}

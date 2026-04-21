@@ -43,6 +43,9 @@ from app.schemas.excel import (
     CampaignSummary,
     ExcelUploadResponse,
     ExportRequest,
+    ImproveAllRequest,
+    ImproveAllResponse,
+    ImprovedAd,
     Insights,
     Limits,
     ParseError,
@@ -406,6 +409,106 @@ async def upload_excel(
         usage=_snapshot_to_usage(usage_after),
         paywall=_maybe_paywall_to_schema(paywall),
         campaign_analytics=campaign_analytics,
+    )
+
+
+@router.post(
+    "/improve-all",
+    response_model=ImproveAllResponse,
+    status_code=status.HTTP_200_OK,
+)
+@limiter.limit("3/minute")
+async def improve_all(
+    request: Request,
+    payload: ImproveAllRequest,
+    user: CurrentUser,
+    db: UserDB,
+) -> ImproveAllResponse:
+    """Batch-improve a caller-supplied set of ads, subject to AI budget.
+
+    Client sends the ads it still wants improved (typically: everything
+    that didn't get an `improved` version on initial upload).  We
+    re-audit cheaply, take the worst-scoring ones up to the remaining
+    AI budget (and the hard batch cap), and return the rewrites.  The
+    caller merges them back by `row`.
+    """
+    plan_id = getattr(user, "plan", "free") or "free"
+    lifetime = int(getattr(user, "ai_ads_used_lifetime", 0) or 0)
+    usage = await billing.get_usage(db, user.id, plan_id, lifetime)
+
+    requested = len(payload.ads)
+    desired = min(requested, AI_BATCH_CAP)
+    ai_allowed, ai_capped = billing.cap_ai_budget(desired, usage)
+
+    improved_items: list[ImprovedAd] = []
+    if ai_allowed > 0:
+        ads_raw = [ad.model_dump() for ad in payload.ads]
+        audits = [analyze_ad(ad) for ad in ads_raw]
+        order = _rank_worst_first(audits, ai_allowed)
+
+        tasks = {idx: asyncio.create_task(improve_ad(ads_raw[idx])) for idx in order}
+        done = await asyncio.gather(*tasks.values(), return_exceptions=True)
+        for idx, result in zip(tasks.keys(), done):
+            if isinstance(result, Exception) or result is None:
+                continue
+            improved_items.append(
+                ImprovedAd(
+                    row=int(ads_raw[idx]["row"]),
+                    improved=AdImproved(**result),
+                )
+            )
+
+    improved_count = len(improved_items)
+
+    if improved_count > 0:
+        await billing.consume_usage(
+            db,
+            user.id,
+            ai_ads=improved_count,
+            ai_requests=1,
+            plan_id=plan_id,
+        )
+
+    usage_after = await billing.get_usage(
+        db, user.id, plan_id, lifetime + improved_count
+    )
+
+    # Pick a paywall trigger — "on_improve_all" when we couldn't cover
+    # all requested, otherwise after_analysis if budget just hit zero.
+    pw_trigger: billing.PaywallTrigger | None = None
+    unimproved_left = requested - improved_count
+    if ai_capped or requested > AI_BATCH_CAP:
+        pw_trigger = "on_improve_all"
+    elif (
+        usage_after.ai_ads_remaining == 0
+        and usage.plan != "pro"
+        and requested > 0
+    ):
+        pw_trigger = "after_analysis"
+
+    paywall = billing.build_paywall(
+        pw_trigger, plan=usage.plan, unimproved_left=unimproved_left
+    ) if pw_trigger else None
+
+    await audit.log(
+        action=audit.Action.EXCEL_IMPROVE_ALL,
+        request=request,
+        user=user,
+        meta={
+            "requested": requested,
+            "improved": improved_count,
+            "plan": plan_id,
+        },
+    )
+
+    return ImproveAllResponse(
+        improved=improved_items,
+        improved_count=improved_count,
+        requested_count=requested,
+        plan=plan_id,
+        limits=_snapshot_to_limits(plan_id),
+        usage=_snapshot_to_usage(usage_after),
+        paywall=_maybe_paywall_to_schema(paywall),
     )
 
 

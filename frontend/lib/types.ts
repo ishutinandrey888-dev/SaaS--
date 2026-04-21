@@ -180,3 +180,18 @@ export interface ExportRequest {
   ads: AdForExport[];
   filename?: string;
 }
+
+export interface ImprovedAdRow {
+  row: number;
+  improved: AdImproved;
+}
+
+export interface ImproveAllResponse {
+  improved: ImprovedAdRow[];
+  improved_count: number;
+  requested_count: number;
+  plan: PlanId;
+  limits: Limits;
+  usage: Usage;
+  paywall: Paywall | null;
+}

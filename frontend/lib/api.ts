@@ -1,7 +1,9 @@
 import type {
+  AdOriginal,
   DashboardResponse,
   ExcelUploadResponse,
   ExportRequest,
+  ImproveAllResponse,
   PlansResponse,
   UpgradeIntentRequest,
   UpgradeIntentResponse,
@@ -46,6 +48,19 @@ export async function uploadExcel(file: File): Promise<ExcelUploadResponse> {
   });
   if (!response.ok) await raise(response);
   return (await response.json()) as ExcelUploadResponse;
+}
+
+export async function improveAll(
+  ads: AdOriginal[],
+): Promise<ImproveAllResponse> {
+  const response = await fetch(`${API_BASE}/excel/improve-all`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ads }),
+  });
+  if (!response.ok) await raise(response);
+  return (await response.json()) as ImproveAllResponse;
 }
 
 export async function exportExcel(request: ExportRequest): Promise<Blob> {
