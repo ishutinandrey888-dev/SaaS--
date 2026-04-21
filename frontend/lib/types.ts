@@ -186,6 +186,20 @@ export interface ImprovedAdRow {
   improved: AdImproved;
 }
 
+export type JobState = "queued" | "running" | "done" | "failed";
+
+export interface JobCreatedResponse {
+  job_id: string;
+  state: JobState;
+}
+
+export interface JobStateResponse {
+  job_id: string;
+  state: JobState;
+  result: ExcelUploadResponse | null;
+  error: string | null;
+}
+
 export interface ImproveAllResponse {
   improved: ImprovedAdRow[];
   improved_count: number;

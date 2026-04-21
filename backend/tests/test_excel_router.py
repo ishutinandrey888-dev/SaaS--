@@ -45,7 +45,7 @@ def test_upload_happy_path(auth_client, monkeypatch):
             "reasoning": "Добавлен CTA и конкретика.",
         }
 
-    monkeypatch.setattr("app.routers.excel.improve_ad", _fake_improve)
+    monkeypatch.setattr("app.services.ai_ads.improve_ad", _fake_improve)
 
     files = {"file": ("ads.xlsx", _sample_xlsx(), _XLSX_MIME)}
     response = auth_client.post("/excel/upload", files=files)
@@ -88,7 +88,7 @@ def test_upload_ai_failure_does_not_fail_whole_response(auth_client, monkeypatch
     async def _broken(_ad):
         raise RuntimeError("upstream boom")
 
-    monkeypatch.setattr("app.routers.excel.improve_ad", _broken)
+    monkeypatch.setattr("app.services.ai_ads.improve_ad", _broken)
 
     files = {"file": ("ads.xlsx", _sample_xlsx(), _XLSX_MIME)}
     response = auth_client.post("/excel/upload", files=files)

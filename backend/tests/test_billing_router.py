@@ -60,7 +60,7 @@ async def _fake_improve(_ad):
 # ---------------------------------------------------------------------
 def test_upload_returns_plan_limits_usage_on_free(auth_client, monkeypatch):
     _patch_usage(monkeypatch, remaining=3)
-    monkeypatch.setattr("app.routers.excel.improve_ad", _fake_improve)
+    monkeypatch.setattr("app.services.ai_ads.improve_ad", _fake_improve)
 
     files = {"file": ("ads.xlsx", _sample_xlsx(2), _XLSX_MIME)}
     response = auth_client.post("/excel/upload", files=files)
@@ -83,7 +83,7 @@ def test_upload_ai_cap_bites_partial_and_paywall(auth_client, monkeypatch):
     # 2 AI calls allowed remain, but we have 4 ads → improve 2, rest null,
     # paywall trigger `on_improve_all`.
     _patch_usage(monkeypatch, used=1, remaining=2)
-    monkeypatch.setattr("app.routers.excel.improve_ad", _fake_improve)
+    monkeypatch.setattr("app.services.ai_ads.improve_ad", _fake_improve)
 
     files = {"file": ("ads.xlsx", _sample_xlsx(4), _XLSX_MIME)}
     response = auth_client.post("/excel/upload", files=files)
@@ -102,7 +102,7 @@ def test_upload_ai_cap_bites_partial_and_paywall(auth_client, monkeypatch):
 # ---------------------------------------------------------------------
 def test_upload_no_ai_budget_returns_audit_only(auth_client, monkeypatch):
     _patch_usage(monkeypatch, used=3, remaining=0)
-    monkeypatch.setattr("app.routers.excel.improve_ad", _fake_improve)
+    monkeypatch.setattr("app.services.ai_ads.improve_ad", _fake_improve)
 
     files = {"file": ("ads.xlsx", _sample_xlsx(2), _XLSX_MIME)}
     response = auth_client.post("/excel/upload", files=files)
@@ -120,7 +120,7 @@ def test_upload_no_ai_budget_returns_audit_only(auth_client, monkeypatch):
 # ---------------------------------------------------------------------
 def test_upload_quota_exhausted_returns_paywall_only(auth_client, monkeypatch):
     _patch_usage(monkeypatch, uploads_used=3, remaining=3)
-    monkeypatch.setattr("app.routers.excel.improve_ad", _fake_improve)
+    monkeypatch.setattr("app.services.ai_ads.improve_ad", _fake_improve)
 
     files = {"file": ("ads.xlsx", _sample_xlsx(2), _XLSX_MIME)}
     response = auth_client.post("/excel/upload", files=files)

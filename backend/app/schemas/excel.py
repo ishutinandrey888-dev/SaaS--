@@ -121,6 +121,18 @@ class ExportRequest(BaseModel):
     filename: str | None = None
 
 
+class JobCreatedResponse(BaseModel):
+    job_id: str
+    state: str  # "queued"
+
+
+class JobStateResponse(BaseModel):
+    job_id: str
+    state: str  # "queued" | "running" | "done" | "failed"
+    result: ExcelUploadResponse | None = None
+    error: str | None = None
+
+
 class ImproveAllRequest(BaseModel):
     ads: list[AdOriginal] = Field(min_length=1, max_length=500)
 

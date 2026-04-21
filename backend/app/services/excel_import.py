@@ -235,12 +235,27 @@ async def parse_direct_excel(file: UploadFile, *, max_bytes: int) -> dict[str, A
         chunks.append(chunk)
 
     data = b"".join(chunks)
+    return await parse_direct_excel_bytes(data, max_bytes=max_bytes)
+
+
+async def parse_direct_excel_bytes(
+    data: bytes, *, max_bytes: int
+) -> dict[str, Any]:
+    """Parse raw XLSX bytes. Same error contract as `parse_direct_excel`."""
+    if len(data) > max_bytes:
+        return {
+            "campaigns": [],
+            "ads": [],
+            "errors": [{
+                "row": 0,
+                "field": "file",
+                "message": f"file_too_large: > {max_bytes} bytes",
+            }],
+        }
     if not data:
         return {
             "campaigns": [],
             "ads": [],
             "errors": [{"row": 0, "field": "file", "message": "empty_file"}],
         }
-
-    # openpyxl is sync; off-load so we don't block the event loop on big files.
     return await asyncio.to_thread(_parse_workbook_bytes, data)

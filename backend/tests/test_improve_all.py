@@ -55,7 +55,7 @@ def test_improve_all_requires_auth(anon_client):
 
 def test_improve_all_happy_path(auth_client, monkeypatch):
     _patch_usage(monkeypatch, remaining=5)
-    monkeypatch.setattr("app.routers.excel.improve_ad", _fake_improve)
+    monkeypatch.setattr("app.services.ai_ads.improve_ad", _fake_improve)
 
     response = auth_client.post(
         "/excel/improve-all", json=_ad_payload([2, 3, 4])
@@ -73,7 +73,7 @@ def test_improve_all_happy_path(auth_client, monkeypatch):
 
 def test_improve_all_partial_when_budget_short(auth_client, monkeypatch):
     _patch_usage(monkeypatch, used=1, remaining=2)
-    monkeypatch.setattr("app.routers.excel.improve_ad", _fake_improve)
+    monkeypatch.setattr("app.services.ai_ads.improve_ad", _fake_improve)
 
     response = auth_client.post(
         "/excel/improve-all", json=_ad_payload([10, 11, 12, 13, 14])
@@ -88,7 +88,7 @@ def test_improve_all_partial_when_budget_short(auth_client, monkeypatch):
 
 def test_improve_all_zero_budget_returns_empty(auth_client, monkeypatch):
     _patch_usage(monkeypatch, used=3, remaining=0)
-    monkeypatch.setattr("app.routers.excel.improve_ad", _fake_improve)
+    monkeypatch.setattr("app.services.ai_ads.improve_ad", _fake_improve)
 
     response = auth_client.post(
         "/excel/improve-all", json=_ad_payload([1, 2])
@@ -116,7 +116,7 @@ def test_improve_all_swallows_ai_failures(auth_client, monkeypatch):
             "reasoning": "ok",
         }
 
-    monkeypatch.setattr("app.routers.excel.improve_ad", _mixed)
+    monkeypatch.setattr("app.services.ai_ads.improve_ad", _mixed)
 
     response = auth_client.post(
         "/excel/improve-all", json=_ad_payload([1, 2, 3])
@@ -145,7 +145,7 @@ def test_improve_all_pro_plan_no_paywall(auth_client, monkeypatch):
 
     monkeypatch.setattr("app.routers.excel.billing.get_usage", _fake_get_usage)
     monkeypatch.setattr("app.routers.excel.billing.consume_usage", _fake_consume)
-    monkeypatch.setattr("app.routers.excel.improve_ad", _fake_improve)
+    monkeypatch.setattr("app.services.ai_ads.improve_ad", _fake_improve)
 
     response = auth_client.post(
         "/excel/improve-all", json=_ad_payload([1, 2])

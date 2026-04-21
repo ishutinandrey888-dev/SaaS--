@@ -4,10 +4,21 @@ import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileSpreadsheet, Loader2, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ApiError, AuthError, uploadExcel } from "@/lib/api";
+import { ApiError, AuthError, uploadExcelViaJob } from "@/lib/api";
+import type { JobState } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type State = { kind: "idle" } | { kind: "loading" } | { kind: "error"; message: string };
+type State =
+  | { kind: "idle" }
+  | { kind: "loading"; job: JobState }
+  | { kind: "error"; message: string };
+
+const JOB_COPY: Record<JobState, string> = {
+  queued: "Файл в очереди…",
+  running: "Анализируем объявления…",
+  done: "Готово",
+  failed: "Ошибка обработки",
+};
 
 const ACCEPTED_EXT = [".xlsx", ".xlsm"];
 const MAX_MB = 10;
@@ -36,9 +47,11 @@ export function Upload() {
         setState({ kind: "error", message: problem });
         return;
       }
-      setState({ kind: "loading" });
+      setState({ kind: "loading", job: "queued" });
       try {
-        const data = await uploadExcel(file);
+        const data = await uploadExcelViaJob(file, (job) => {
+          setState({ kind: "loading", job });
+        });
         sessionStorage.setItem(
           "excel_result",
           JSON.stringify({ data, filename: file.name, at: Date.now() }),
@@ -72,6 +85,8 @@ export function Upload() {
   );
 
   const isLoading = state.kind === "loading";
+  const loadingLabel =
+    state.kind === "loading" ? JOB_COPY[state.job] : "";
 
   return (
     <div className="w-full max-w-2xl">
@@ -122,7 +137,7 @@ export function Upload() {
         <div className="space-y-1.5">
           <p className="text-lg font-medium text-slate-900">
             {isLoading
-              ? "Анализируем объявления…"
+              ? loadingLabel
               : "Перетащите Excel сюда или нажмите, чтобы выбрать"}
           </p>
           <p className="text-sm text-slate-500">
@@ -140,7 +155,7 @@ export function Upload() {
           }}
         >
           <FileSpreadsheet className="h-5 w-5" />
-          {isLoading ? "Идёт аудит…" : "Загрузить Excel"}
+          {isLoading ? loadingLabel : "Загрузить Excel"}
         </Button>
       </label>
 
