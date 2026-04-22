@@ -4,6 +4,7 @@ import type {
   DashboardResponse,
   ExcelUploadResponse,
   ExportRequest,
+  FunnelMetricsResponse,
   ImproveAllResponse,
   JobCreatedResponse,
   JobState,
@@ -189,6 +190,14 @@ export async function fetchPaymentStatus(
   );
   if (!response.ok) await raise(response);
   return (await response.json()) as PaymentStatusResponse;
+}
+
+export async function fetchAdminMetrics(): Promise<FunnelMetricsResponse> {
+  const response = await fetch(`${API_BASE}/admin/metrics`, {
+    credentials: "include",
+  });
+  if (!response.ok) await raise(response);
+  return (await response.json()) as FunnelMetricsResponse;
 }
 
 export async function fetchMe(): Promise<Me> {

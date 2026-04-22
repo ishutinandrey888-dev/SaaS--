@@ -237,3 +237,14 @@ export interface PaymentStatusResponse {
   created_at: string;
   paid_at: string | null;
 }
+
+export interface FunnelMetricsResponse {
+  signups: number;
+  uploaders: number;
+  improvers: number;
+  payers: number;
+  revenue_minor: number;
+  upload_rate: number;
+  improve_rate: number;
+  pay_rate: number;
+}

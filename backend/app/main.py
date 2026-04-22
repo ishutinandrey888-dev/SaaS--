@@ -19,6 +19,7 @@ from app.routers import billing as billing_router
 from app.routers import dashboard as dashboard_router
 from app.routers import excel as excel_router
 from app.routers import health as health_router
+from app.routers import admin as admin_router
 
 settings = get_settings()
 
@@ -84,6 +85,7 @@ def create_app() -> FastAPI:
     app.include_router(excel_router.router)
     app.include_router(billing_router.router)
     app.include_router(dashboard_router.router)
+    app.include_router(admin_router.router)
 
     @app.middleware("http")
     async def attach_limiter_state(request: Request, call_next):
