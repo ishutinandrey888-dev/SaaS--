@@ -12,6 +12,9 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# `public/` is optional; create it if the project doesn't ship one so
+# the later COPY --from=builder /app/public never misses.
+RUN mkdir -p ./public
 # NEXT_PUBLIC_* vars are baked in at build time.  The value below is
 # what the browser calls; /api requests from the host land on the
 # backend via the compose network.
