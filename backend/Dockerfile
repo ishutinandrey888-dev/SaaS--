@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1.7
-
 # --- Builder: install deps into a venv ------------------------------
 FROM python:3.12-slim AS builder
 
