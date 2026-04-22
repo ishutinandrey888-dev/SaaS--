@@ -105,6 +105,29 @@ def get_plan(plan_id: str | None) -> PlanDef:
     return PLANS["free"]
 
 
+def get_effective_plan(user: object, now: datetime | None = None) -> str:
+    """Return the plan id the user currently pays for — "free" if expired.
+
+    `users.plan` is bumped to `starter`/`pro` the moment the payment
+    webhook lands, and `users.plan_expires_at` is set 31 days out.  We
+    don't auto-write back to `users.plan` when the window closes —
+    a read-time check is enough for all gating paths and keeps the
+    write-side simple.  A daily cron can clear the row later if needed.
+    """
+    plan = getattr(user, "plan", "free") or "free"
+    if plan == "free":
+        return "free"
+    expires = getattr(user, "plan_expires_at", None)
+    if expires is None:
+        # No expiry set — treat as indefinite (admin grants, legacy rows).
+        return plan
+    moment = now or datetime.now(timezone.utc)
+    # `expires` is TIMESTAMPTZ → timezone-aware; compare directly.
+    if expires <= moment:
+        return "free"
+    return plan
+
+
 def current_period(now: datetime | None = None) -> str:
     now = now or datetime.now(timezone.utc)
     return f"{now.year:04d}-{now.month:02d}"

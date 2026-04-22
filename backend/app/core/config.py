@@ -51,6 +51,11 @@ class Settings(BaseSettings):
 
     yukassa_shop_id: str = ""
     yukassa_secret_key: str = ""
+    # Comma-separated CIDR / IP list.  The /billing/webhook handler
+    # only accepts POSTs from these sources.  Empty means "dev mode" —
+    # we fall back to loopback only, so an unconfigured prod deploy
+    # still can't be upgraded by a random internet host.
+    yukassa_webhook_ips: str = ""
     # Where the user is redirected back to after provider-hosted checkout.
     payment_return_url: str = "http://localhost:3000/billing/success"
 

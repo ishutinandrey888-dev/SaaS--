@@ -115,7 +115,7 @@ async def upload_excel(
     _validate_upload(file)
     data = await _read_upload_bytes(file, settings.max_upload_size_bytes)
 
-    plan_id = getattr(user, "plan", "free") or "free"
+    plan_id = billing.get_effective_plan(user)
     lifetime = int(getattr(user, "ai_ads_used_lifetime", 0) or 0)
 
     return await run_upload_pipeline(
@@ -150,7 +150,7 @@ async def create_excel_job(
     _validate_upload(file)
     data = await _read_upload_bytes(file, settings.max_upload_size_bytes)
 
-    plan_id = getattr(user, "plan", "free") or "free"
+    plan_id = billing.get_effective_plan(user)
     lifetime = int(getattr(user, "ai_ads_used_lifetime", 0) or 0)
 
     from app.tasks.excel_jobs import process_upload_task
@@ -236,7 +236,7 @@ async def improve_all(
     AI budget (and the hard batch cap), and return the rewrites.  The
     caller merges them back by `row`.
     """
-    plan_id = getattr(user, "plan", "free") or "free"
+    plan_id = billing.get_effective_plan(user)
     lifetime = int(getattr(user, "ai_ads_used_lifetime", 0) or 0)
     usage = await billing.get_usage(db, user.id, plan_id, lifetime)
 

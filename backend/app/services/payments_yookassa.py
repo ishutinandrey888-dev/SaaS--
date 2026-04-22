@@ -14,11 +14,18 @@ Webhook parsing is provider-shaped: YooKassa posts
 `{"event": "...", "object": {...}}` where `object` is the same shape
 as the create-payment response.  We read `object.id` and `object.status`
 and ignore the rest.
+
+Webhook authentication: YooKassa doesn't sign webhooks, so we pin the
+source by IP.  The `yukassa_webhook_ips` env is a comma-separated CIDR
+list (their published notification IPs).  Empty config means dev mode
+and we fall back to loopback only — an unconfigured prod deploy still
+can't be exploited by a random internet host.
 """
 
 from __future__ import annotations
 
 import base64
+import ipaddress
 import logging
 import uuid
 from dataclasses import dataclass
@@ -32,6 +39,11 @@ logger = logging.getLogger("payments.yookassa")
 
 _API_BASE = "https://api.yookassa.ru/v3"
 _TIMEOUT_S = 15.0
+
+_LOOPBACK_NETWORKS: tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...] = (
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("::1/128"),
+)
 
 
 @dataclass(frozen=True)
@@ -121,6 +133,40 @@ async def create_payment(
         status=str(data.get("status") or "pending"),
         confirmation_url=conf_url,
     )
+
+
+def _parse_networks(raw: str) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    nets: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+    for token in raw.split(","):
+        token = token.strip()
+        if not token:
+            continue
+        try:
+            nets.append(ipaddress.ip_network(token, strict=False))
+        except ValueError:
+            logger.warning("webhook_ip_parse_failed token=%r", token)
+    return nets
+
+
+def is_webhook_source_allowed(client_ip: str | None) -> bool:
+    """True if `client_ip` is in the configured allowlist.
+
+    Empty allowlist → loopback only (dev default).  Malformed / missing
+    IP → deny.  We never trust `X-Forwarded-For` blindly; the caller
+    normalises that before passing it in.
+    """
+    if not client_ip:
+        return False
+    try:
+        ip = ipaddress.ip_address(client_ip)
+    except ValueError:
+        return False
+
+    s = get_settings()
+    nets = _parse_networks(s.yukassa_webhook_ips)
+    if not nets:
+        return any(ip in net for net in _LOOPBACK_NETWORKS)
+    return any(ip in net for net in nets)
 
 
 def parse_webhook(payload: dict[str, Any]) -> tuple[str, str] | None:

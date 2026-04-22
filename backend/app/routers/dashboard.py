@@ -94,7 +94,7 @@ def _usage(snap: billing.UsageSnapshot) -> Usage:
 
 @router.get("", response_model=DashboardResponse)
 async def get_dashboard(user: CurrentUser, db: UserDB) -> DashboardResponse:
-    plan_id = getattr(user, "plan", "free") or "free"
+    plan_id = billing.get_effective_plan(user)
     plan = billing.get_plan(plan_id)
     lifetime = int(getattr(user, "ai_ads_used_lifetime", 0) or 0)
 

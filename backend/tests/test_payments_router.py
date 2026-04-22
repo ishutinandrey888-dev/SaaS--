@@ -146,6 +146,19 @@ def test_webhook_rejects_invalid_json(anon_client):
     assert response.status_code == 400
 
 
+def test_webhook_rejects_forbidden_ip(anon_client, monkeypatch):
+    # TestClient peers as 127.0.0.1 by default, which would be allowed
+    # under the empty-allowlist dev fallback.  Force a non-loopback IP
+    # via X-Forwarded-For (the router reads it first).
+    response = anon_client.post(
+        "/billing/webhook",
+        json={"event": "payment.succeeded", "object": {"id": "x", "status": "succeeded"}},
+        headers={"X-Forwarded-For": "203.0.113.5"},
+    )
+    # 404 rather than 403 — we don't advertise the surface to forgers.
+    assert response.status_code == 404
+
+
 # ---------------------------------------------------------------------
 # Status
 # ---------------------------------------------------------------------
