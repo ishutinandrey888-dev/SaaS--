@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import uuid
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 
 PlanId = Literal["free", "starter", "pro"]
+PaidPlanId = Literal["starter", "pro"]
+PaymentStatus = Literal["pending", "succeeded", "failed", "canceled"]
 
 
 class UpgradeIntentRequest(BaseModel):
@@ -34,3 +38,27 @@ class PlanInfo(BaseModel):
 
 class PlansResponse(BaseModel):
     plans: list[PlanInfo]
+
+
+class CreatePaymentRequest(BaseModel):
+    plan: PaidPlanId
+
+
+class CreatePaymentResponse(BaseModel):
+    payment_id: uuid.UUID
+    confirmation_url: str
+    status: PaymentStatus
+
+
+class PaymentStatusResponse(BaseModel):
+    id: uuid.UUID
+    plan: PaidPlanId
+    amount: int  # minor units
+    currency: str
+    status: PaymentStatus
+    created_at: datetime
+    paid_at: datetime | None = None
+
+
+class WebhookAck(BaseModel):
+    ok: bool

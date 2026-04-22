@@ -33,6 +33,10 @@ class User(Base):
     plan: Mapped[str] = mapped_column(
         String(16), default="free", server_default="free", nullable=False
     )
+    # When the current paid plan lapses.  NULL on free (no expiry).
+    plan_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
     # Free-tier hybrid counter: lifetime, never resets.  Paid tiers use
     # usage_counters.ai_ads_used (monthly) instead.
     ai_ads_used_lifetime: Mapped[int] = mapped_column(

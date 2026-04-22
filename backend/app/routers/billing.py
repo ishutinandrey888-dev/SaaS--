@@ -1,27 +1,45 @@
-"""Billing stubs + tier catalog.
+"""Billing: tier catalog + payments (create + webhook + status).
 
-This is intentionally a thin layer: no ЮKassa / Stripe yet, but the
-surface is stable enough that wiring a real provider later is a
-drop-in.  The **only** side effect here is writing an audit row so we
-can measure paywall CTR.
+`upgrade-intent` remains as a lightweight "clicked the paywall" audit
+event; the real checkout path goes through `/billing/create-payment`.
+
+Payments flow:
+  1. Client POSTs `/billing/create-payment` with a plan id.
+  2. We compute the price from `PLANS`, open a user-scoped tx, call
+     the provider, insert a `pending` row.
+  3. Client is redirected to `confirmation_url` (provider-hosted).
+  4. Provider POSTs `/billing/webhook` — admin-session handler flips
+     the row to `succeeded` and bumps `users.plan` + `plan_expires_at`.
+  5. Client lands on `/billing/success` and polls
+     `/billing/status/{id}` until `succeeded`.
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request, status
+import logging
 
+from fastapi import APIRouter, HTTPException, Request, status
+
+from app.core.config import get_settings
+from app.core.database import AsyncSessionAdmin, UserDB
 from app.middleware.auth import CurrentUser
 from app.middleware.rate_limit import limiter
 from app.schemas.billing import (
+    CreatePaymentRequest,
+    CreatePaymentResponse,
+    PaymentStatusResponse,
     PlanInfo,
     PlansResponse,
     UpgradeIntentRequest,
     UpgradeIntentResponse,
+    WebhookAck,
 )
-from app.services import audit
-from app.services.billing import PLANS
+from app.services import audit, payments
+from app.services.billing import PLANS, get_plan
 
 router = APIRouter(prefix="/billing", tags=["billing"])
+logger = logging.getLogger("billing")
+settings = get_settings()
 
 
 @router.get("/plans", response_model=PlansResponse)
@@ -76,3 +94,167 @@ async def upgrade_intent(
         meta=meta,
     )
     return UpgradeIntentResponse()
+
+
+# ---------------------------------------------------------------------
+# Payments
+# ---------------------------------------------------------------------
+@router.post(
+    "/create-payment",
+    response_model=CreatePaymentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+@limiter.limit("5/minute")
+async def create_payment(
+    request: Request,
+    payload: CreatePaymentRequest,
+    user: CurrentUser,
+    db: UserDB,
+) -> CreatePaymentResponse:
+    plan = get_plan(payload.plan)
+    if plan.price_rub <= 0:
+        raise HTTPException(status_code=400, detail="plan_not_payable")
+
+    amount_minor = plan.price_rub * 100  # RUB → kopecks
+    description = f"SaaS Direct — тариф {plan.label}"
+
+    try:
+        result = await payments.create_payment(
+            db,
+            user_id=user.id,
+            plan=plan.id,
+            amount_minor=amount_minor,
+            currency="RUB",
+            return_url=settings.payment_return_url,
+            description=description,
+            metadata={"user_id": str(user.id), "plan": plan.id},
+        )
+    except Exception as exc:  # noqa: BLE001 — provider errors surfaced as 502
+        logger.exception("create_payment_failed user=%s", user.id)
+        await audit.log(
+            action=audit.Action.PAYMENT_FAILED,
+            request=request,
+            user=user,
+            success=False,
+            meta={"plan": plan.id, "stage": "provider", "error": str(exc)[:256]},
+        )
+        raise HTTPException(status_code=502, detail="provider_unavailable") from exc
+
+    confirmation_url = result["confirmation_url"]
+    if not confirmation_url:
+        raise HTTPException(status_code=502, detail="provider_no_url")
+
+    await audit.log(
+        action=audit.Action.PAYMENT_INITIATED,
+        request=request,
+        user=user,
+        success=True,
+        meta={
+            "payment_id": str(result["id"]),
+            "plan": plan.id,
+            "amount_minor": amount_minor,
+            "provider": result["provider"],
+        },
+    )
+
+    return CreatePaymentResponse(
+        payment_id=result["id"],
+        confirmation_url=confirmation_url,
+        status=result["status"],
+    )
+
+
+@router.post(
+    "/webhook",
+    response_model=WebhookAck,
+    status_code=status.HTTP_200_OK,
+)
+@limiter.limit("120/minute")
+async def payments_webhook(request: Request) -> WebhookAck:
+    """Provider callback.
+
+    Opens its own admin session — webhooks carry no JWT and we need
+    to write to `users` (owned by another user).  The provider is
+    YooKassa today; to support Stripe/another later, branch here on
+    headers / URL prefix and call the right parser.
+    """
+    try:
+        payload = await request.json()
+    except Exception:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail="invalid_json")
+
+    provider_name = "yookassa"
+
+    async with AsyncSessionAdmin() as session:
+        session.info["kind"] = "admin"
+        try:
+            result = await payments.handle_webhook(
+                session, provider_name=provider_name, payload=payload
+            )
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+
+    if result.get("plan_granted"):
+        await audit.log(
+            action=audit.Action.PAYMENT_SUCCEEDED,
+            request=request,
+            user=result.get("user_id"),
+            success=True,
+            meta={
+                "payment_id": result.get("payment_id"),
+                "plan": result.get("plan"),
+                "provider": provider_name,
+            },
+        )
+    elif result.get("status") == "failed":
+        await audit.log(
+            action=audit.Action.PAYMENT_FAILED,
+            request=request,
+            user=result.get("user_id"),
+            success=False,
+            meta={
+                "payment_id": result.get("payment_id"),
+                "plan": result.get("plan"),
+                "provider": provider_name,
+                "stage": "webhook",
+            },
+        )
+
+    return WebhookAck(ok=bool(result.get("ok")))
+
+
+@router.get(
+    "/status/{payment_id}",
+    response_model=PaymentStatusResponse,
+    status_code=status.HTTP_200_OK,
+)
+@limiter.limit("60/minute")
+async def payment_status(
+    request: Request,
+    payment_id: str,
+    user: CurrentUser,
+    db: UserDB,
+) -> PaymentStatusResponse:
+    import uuid
+
+    try:
+        pid = uuid.UUID(payment_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="bad_payment_id") from exc
+
+    row = await payments.get_payment(db, payment_id=pid)
+    if row is None or str(row["user_id"]) != str(user.id):
+        # Don't leak ownership — same 404 for "wrong user" and "not found".
+        raise HTTPException(status_code=404, detail="payment_not_found")
+
+    return PaymentStatusResponse(
+        id=row["id"],
+        plan=row["plan"],
+        amount=row["amount"],
+        currency=row["currency"],
+        status=row["status"],
+        created_at=row["created_at"],
+        paid_at=row["paid_at"],
+    )

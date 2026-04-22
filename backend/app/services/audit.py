@@ -57,6 +57,9 @@ class Action:
 
     PAYMENTS_WEBHOOK = "payments.webhook"
     PAYMENTS_SUBSCRIBE = "payments.subscribe"
+    PAYMENT_INITIATED = "payment.initiated"
+    PAYMENT_SUCCEEDED = "payment.succeeded"
+    PAYMENT_FAILED = "payment.failed"
 
 
 def _client_ip(request: Request | None) -> str | None:

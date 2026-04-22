@@ -1,5 +1,6 @@
 import type {
   AdOriginal,
+  CreatePaymentResponse,
   DashboardResponse,
   ExcelUploadResponse,
   ExportRequest,
@@ -8,6 +9,8 @@ import type {
   JobState,
   JobStateResponse,
   Me,
+  PaidPlanId,
+  PaymentStatusResponse,
   PlansResponse,
   UpgradeIntentRequest,
   UpgradeIntentResponse,
@@ -162,6 +165,30 @@ export async function postUpgradeIntent(
   });
   if (!response.ok) await raise(response);
   return (await response.json()) as UpgradeIntentResponse;
+}
+
+export async function createPayment(
+  plan: PaidPlanId,
+): Promise<CreatePaymentResponse> {
+  const response = await fetch(`${API_BASE}/billing/create-payment`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ plan }),
+  });
+  if (!response.ok) await raise(response);
+  return (await response.json()) as CreatePaymentResponse;
+}
+
+export async function fetchPaymentStatus(
+  paymentId: string,
+): Promise<PaymentStatusResponse> {
+  const response = await fetch(
+    `${API_BASE}/billing/status/${encodeURIComponent(paymentId)}`,
+    { credentials: "include" },
+  );
+  if (!response.ok) await raise(response);
+  return (await response.json()) as PaymentStatusResponse;
 }
 
 export async function fetchMe(): Promise<Me> {

@@ -5,6 +5,7 @@ from app.models.campaign import Campaign
 from app.models.keyword import Keyword
 from app.models.kpi_snapshot import KpiSnapshot
 from app.models.login_attempt import LoginAttempt
+from app.models.payment import Payment
 from app.models.report_upload import ReportUpload
 from app.models.subscription import Subscription
 from app.models.upload_history import UploadHistory
@@ -19,6 +20,7 @@ __all__ = [
     "Keyword",
     "KpiSnapshot",
     "LoginAttempt",
+    "Payment",
     "ReportUpload",
     "Subscription",
     "UploadHistory",

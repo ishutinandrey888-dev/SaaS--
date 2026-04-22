@@ -15,15 +15,16 @@ import { Badge } from "@/components/ui/badge";
 import {
   ApiError,
   AuthError,
+  createPayment,
   fetchDashboard,
   fetchMe,
   fetchPlans,
   logout,
-  postUpgradeIntent,
 } from "@/lib/api";
 import type {
   DashboardResponse,
   Me,
+  PaidPlanId,
   PlanId,
   PlanInfo,
 } from "@/lib/types";
@@ -62,7 +63,7 @@ function priceLabel(plan: PlanInfo): string {
 export default function SettingsPage() {
   const router = useRouter();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
-  const [upgrading, setUpgrading] = useState<PlanId | null>(null);
+  const [upgrading, setUpgrading] = useState<PaidPlanId | null>(null);
   const [upgradeMessage, setUpgradeMessage] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
 
@@ -96,18 +97,14 @@ export default function SettingsPage() {
   }, [router]);
 
   const onUpgrade = useCallback(
-    async (plan: PlanId) => {
+    async (plan: PaidPlanId) => {
       setUpgrading(plan);
       setUpgradeMessage(null);
       try {
-        const res = await postUpgradeIntent({
-          plan,
-          trigger: "settings_page",
-        });
-        setUpgradeMessage(
-          res.message ||
-            "Заявка принята. Мы напишем вам на почту с инструкциями по оплате.",
-        );
+        const res = await createPayment(plan);
+        // Redirect to the provider-hosted checkout.  On success the
+        // user lands on /billing/success?id=<payment_id>.
+        window.location.href = res.confirmation_url;
       } catch (error) {
         if (error instanceof AuthError) {
           router.push("/login");
@@ -116,9 +113,8 @@ export default function SettingsPage() {
         const message =
           error instanceof ApiError
             ? `Ошибка: ${error.message}`
-            : "Не удалось отправить заявку.";
+            : "Не удалось создать платёж. Попробуйте ещё раз.";
         setUpgradeMessage(message);
-      } finally {
         setUpgrading(null);
       }
     },
@@ -321,7 +317,7 @@ export default function SettingsPage() {
                       size="sm"
                       className="w-full"
                       disabled={upgrading !== null}
-                      onClick={() => onUpgrade(plan.id)}
+                      onClick={() => onUpgrade(plan.id as PaidPlanId)}
                     >
                       {upgrading === plan.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />

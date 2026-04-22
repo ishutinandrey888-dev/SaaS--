@@ -51,6 +51,8 @@ class Settings(BaseSettings):
 
     yukassa_shop_id: str = ""
     yukassa_secret_key: str = ""
+    # Where the user is redirected back to after provider-hosted checkout.
+    payment_return_url: str = "http://localhost:3000/billing/success"
 
     pagespeed_api_key: str = ""
 

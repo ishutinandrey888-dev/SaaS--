@@ -218,3 +218,22 @@ export interface Me {
   is_verified: boolean;
   created_at: string;
 }
+
+export type PaidPlanId = "starter" | "pro";
+export type PaymentStatus = "pending" | "succeeded" | "failed" | "canceled";
+
+export interface CreatePaymentResponse {
+  payment_id: string;
+  confirmation_url: string;
+  status: PaymentStatus;
+}
+
+export interface PaymentStatusResponse {
+  id: string;
+  plan: PaidPlanId;
+  amount: number;
+  currency: string;
+  status: PaymentStatus;
+  created_at: string;
+  paid_at: string | null;
+}
