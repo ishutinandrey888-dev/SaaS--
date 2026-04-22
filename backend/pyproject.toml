@@ -14,6 +14,11 @@ dependencies = [
   "psycopg2-binary>=2.9.9",
   "python-jose[cryptography]>=3.3.0",
   "passlib[bcrypt]>=1.7.4",
+  # passlib 1.7.4 + bcrypt >= 4.1 is broken: passlib's startup
+  # self-test feeds bcrypt a >72-byte probe and bcrypt 4.1 turned the
+  # silent truncation into a hard ValueError, killing /auth/register
+  # and /auth/login.  Pin to 4.0.x until passlib ships a fix.
+  "bcrypt>=4.0,<4.1",
   "python-multipart>=0.0.12",
   "httpx>=0.27.2",
   "openai>=1.47.0",
