@@ -216,6 +216,35 @@ export async function logout(): Promise<void> {
   if (!response.ok && response.status !== 401) await raise(response);
 }
 
+export interface RegisterPayload {
+  email: string;
+  password: string;
+  full_name?: string;
+}
+
+export async function register(payload: RegisterPayload): Promise<void> {
+  const response = await fetch(`${API_BASE}/auth/register`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) await raise(response);
+}
+
+export async function login(
+  email: string,
+  password: string,
+): Promise<void> {
+  const response = await fetch(`${API_BASE}/auth/login`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!response.ok) await raise(response);
+}
+
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");

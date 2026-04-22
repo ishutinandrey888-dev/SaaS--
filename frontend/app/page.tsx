@@ -34,7 +34,15 @@ export default function HomePage() {
           <Link href="/settings" className="hover:text-slate-900">
             Настройки
           </Link>
-          <span>MVP</span>
+          <Link href="/login" className="hover:text-slate-900">
+            Войти
+          </Link>
+          <Link
+            href="/register"
+            className="rounded-lg bg-slate-900 px-3 py-1.5 text-white hover:bg-slate-800"
+          >
+            Регистрация
+          </Link>
         </nav>
       </header>
 
