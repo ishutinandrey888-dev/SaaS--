@@ -1,0 +1,122 @@
+# One-command local demo.
+#
+#   docker compose up --build
+#
+# Services:
+#   postgres  — Postgres 16 with the app_user role bootstrapped via
+#               deploy/init-postgres.sql (runs once on an empty volume).
+#   redis     — Celery broker/result backend.
+#   backend   — FastAPI + Alembic migrations on start.
+#   worker    — Celery worker for async /excel/jobs.
+#   frontend  — Next.js standalone server, talks to the backend.
+#
+# After `up` settles, open http://localhost:3000 and register.  The
+# payment flow runs in stub mode (no YooKassa key required) — the
+# confirmation URL lands you straight on /billing/success and the
+# plan is auto-granted.
+#
+# To nuke everything (DB + uploads):
+#   docker compose down -v
+
+name: saas-direct-demo
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: saas_direct
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./deploy/init-postgres.sql:/docker-entrypoint-initdb.d/00-roles.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d saas_direct"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ENV: dev
+      DATABASE_URL_ADMIN: postgresql+asyncpg://postgres:postgres@postgres:5432/saas_direct
+      DATABASE_URL_USER: postgresql+asyncpg://app_user:postgres@postgres:5432/saas_direct
+      DATABASE_URL_SYNC: postgresql+psycopg2://postgres:postgres@postgres:5432/saas_direct
+      JWT_SECRET: dev-secret-do-not-use-in-production-min-32-chars
+      REDIS_URL: redis://redis:6379/0
+      CORS_ORIGINS: http://localhost:3000
+      PAYMENT_RETURN_URL: http://localhost:3000/billing/success
+      # Leave OPENAI_API_KEY empty → AI calls degrade gracefully.
+      # Drop a real key in .env (see .env.example) to enable rewriting.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
+      # YUKASSA_* empty → payment stub: /billing/success flow works
+      # without any real provider account.
+      YUKASSA_SHOP_ID: ""
+      YUKASSA_SECRET_KEY: ""
+      # Grant admin /admin/metrics access by setting this to your
+      # registered email (the address you used to sign up).
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      FERNET_KEY: ${FERNET_KEY:-}
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "8000:8000"
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    depends_on:
+      backend:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    environment:
+      ENV: dev
+      DATABASE_URL_ADMIN: postgresql+asyncpg://postgres:postgres@postgres:5432/saas_direct
+      DATABASE_URL_USER: postgresql+asyncpg://app_user:postgres@postgres:5432/saas_direct
+      DATABASE_URL_SYNC: postgresql+psycopg2://postgres:postgres@postgres:5432/saas_direct
+      JWT_SECRET: dev-secret-do-not-use-in-production-min-32-chars
+      REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
+      FERNET_KEY: ${FERNET_KEY:-}
+    command: ["celery", "-A", "app.tasks.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
+volumes:
+  pg_data:
+  redis_data:
