@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ДОЖИМ-АЙ — AI-агенты для Яндекс Директа",
+  title: "ДОЖИМ-АЙ — AI-агент для рекламы в Яндекс Директе",
   description:
-    "AI-агент следит за рекламой 24/7: аудитит, ищет точки роста, в автопилоте применяет изменения через API.",
+    "AI-агент следит за контекстной рекламой 24/7: аудитит, ищет точки роста, в автопилоте применяет изменения через API.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
