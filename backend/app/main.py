@@ -17,7 +17,6 @@ from app.middleware.sanitize import SanitizeMiddleware
 from app.routers import auth as auth_router
 from app.routers import billing as billing_router
 from app.routers import dashboard as dashboard_router
-from app.routers import excel as excel_router
 from app.routers import health as health_router
 from app.routers import admin as admin_router
 
@@ -82,7 +81,6 @@ def create_app() -> FastAPI:
     # --- Routers -----------------------------------------------------
     app.include_router(health_router.router)
     app.include_router(auth_router.router)
-    app.include_router(excel_router.router)
     app.include_router(billing_router.router)
     app.include_router(dashboard_router.router)
     app.include_router(admin_router.router)

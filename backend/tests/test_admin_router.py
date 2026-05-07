@@ -8,10 +8,10 @@ from app.services import metrics
 def _patch_funnel(monkeypatch, **fields):
     base = {
         "signups": 100,
-        "uploaders": 60,
-        "improvers": 30,
+        "connectors": 60,
+        "activators": 30,
         "payers": 10,
-        "revenue_minor": 1290000,
+        "revenue_minor": 399000,
     }
     base.update(fields)
     funnel = metrics.FunnelMetrics(**base)
@@ -19,8 +19,6 @@ def _patch_funnel(monkeypatch, **fields):
     async def _fake_compute(_session):
         return funnel
 
-    # Side-step the AsyncSessionAdmin context manager — the router opens
-    # one and never commits, so a no-op stand-in is enough.
     class _FakeSession:
         info: dict = {}
 
@@ -36,7 +34,6 @@ def _patch_funnel(monkeypatch, **fields):
 
 
 def test_metrics_404_for_non_admin(auth_client, monkeypatch, test_user):
-    # ADMIN_EMAILS empty by default → no one is admin.
     monkeypatch.setattr(
         "app.routers.admin.get_settings",
         lambda: type("S", (), {"admin_email_set": set()})(),
@@ -61,13 +58,12 @@ def test_metrics_returns_funnel_for_admin(auth_client, monkeypatch, test_user):
     assert response.status_code == 200
     body = response.json()
     assert body["signups"] == 100
-    assert body["uploaders"] == 60
-    assert body["improvers"] == 30
+    assert body["connectors"] == 60
+    assert body["activators"] == 30
     assert body["payers"] == 10
-    assert body["revenue_minor"] == 1290000
-    # Conversion ratios are computed server-side.
-    assert body["upload_rate"] == 0.6
-    assert body["improve_rate"] == 0.5
+    assert body["revenue_minor"] == 399000
+    assert body["connect_rate"] == 0.6
+    assert body["activate_rate"] == 0.5
     assert body["pay_rate"] == round(10 / 30, 4)
 
 
@@ -79,8 +75,8 @@ def test_metrics_zero_signups_doesnt_divide(auth_client, monkeypatch, test_user)
     _patch_funnel(
         monkeypatch,
         signups=0,
-        uploaders=0,
-        improvers=0,
+        connectors=0,
+        activators=0,
         payers=0,
         revenue_minor=0,
     )
@@ -88,6 +84,6 @@ def test_metrics_zero_signups_doesnt_divide(auth_client, monkeypatch, test_user)
     response = auth_client.get("/admin/metrics")
     assert response.status_code == 200
     body = response.json()
-    assert body["upload_rate"] == 0.0
-    assert body["improve_rate"] == 0.0
+    assert body["connect_rate"] == 0.0
+    assert body["activate_rate"] == 0.0
     assert body["pay_rate"] == 0.0

@@ -4,7 +4,7 @@ No external calls — pure Python string analysis over a single ad dict.
 The score is intentionally coarse (0-100 bucketed) so the UI can show a
 traffic light without pretending to be more precise than it is.
 
-Ad dict shape (see services.excel_import):
+Ad dict shape (canonical for the agent runner; populated from Yandex Direct API):
     {
         "headline": str,
         "headline2": str | None,
@@ -19,7 +19,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from app.services.excel_import import HEADLINE_MAX, HEADLINE2_MAX, TEXT_MAX
+from app.core.limits import HEADLINE_MAX, HEADLINE2_MAX, TEXT_MAX
 
 # Russian + English CTA verbs.  Prefix match on word starts so we cover
 # conjugations without listing every form.

@@ -10,8 +10,9 @@ Design goals:
     INSERT … ON CONFLICT DO UPDATE so repeated calls just increment.
 
 Scopes of a "limit":
-  * `uploads_per_month` — monthly cap on /excel/upload calls (gates
-    intake; once exhausted, audit results still return but no AI).
+  * `uploads_per_month` — legacy field reused as a per-period cap on
+    "process X items" operations (kept for compatibility with usage
+    counters).
   * `max_ads_per_upload` — silent cap; bigger files are trimmed with a
     notice so we never process runaway spreadsheets.
   * `ai_ads` — the expensive quota.  Free: 3 **lifetime**.  Paid: per
@@ -35,7 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger("billing")
 
-PlanId = Literal["free", "starter", "pro"]
+PlanId = Literal["free", "pro", "agency"]
 PaywallTrigger = Literal[
     "after_analysis",
     "on_improve_all",
@@ -64,7 +65,7 @@ class PlanDef:
 PLANS: dict[PlanId, PlanDef] = {
     "free": PlanDef(
         id="free",
-        label="Free",
+        label="Free (trial 7 дней)",
         price_rub=0,
         uploads_per_month=3,
         max_ads_per_upload=50,
@@ -73,10 +74,10 @@ PLANS: dict[PlanId, PlanDef] = {
         watermark=True,
         history_days=7,
     ),
-    "starter": PlanDef(
-        id="starter",
-        label="Starter",
-        price_rub=1290,
+    "pro": PlanDef(
+        id="pro",
+        label="Pro",
+        price_rub=3990,
         uploads_per_month=20,
         max_ads_per_upload=500,
         ai_ads_per_period=50,
@@ -84,11 +85,11 @@ PLANS: dict[PlanId, PlanDef] = {
         watermark=False,
         history_days=30,
     ),
-    "pro": PlanDef(
-        id="pro",
-        label="Pro",
-        price_rub=5990,
-        uploads_per_month=100,
+    "agency": PlanDef(
+        id="agency",
+        label="Agency",
+        price_rub=13900,
+        uploads_per_month=None,
         max_ads_per_upload=2000,
         ai_ads_per_period=None,
         ai_reset="monthly",
@@ -108,7 +109,7 @@ def get_plan(plan_id: str | None) -> PlanDef:
 def get_effective_plan(user: object, now: datetime | None = None) -> str:
     """Return the plan id the user currently pays for — "free" if expired.
 
-    `users.plan` is bumped to `starter`/`pro` the moment the payment
+    `users.plan` is bumped to `pro`/`agency` the moment the payment
     webhook lands, and `users.plan_expires_at` is set 31 days out.  We
     don't auto-write back to `users.plan` when the window closes —
     a read-time check is enough for all gating paths and keeps the
@@ -338,9 +339,9 @@ class Paywall:
 
 
 _NEXT_PLAN_CTA: dict[PlanId, str] = {
-    "free": "Оформить Starter",
-    "starter": "Оформить Pro",
-    "pro": "",  # no upsell beyond pro
+    "free": "Оформить Pro",
+    "pro": "Оформить Agency",
+    "agency": "",  # no upsell beyond agency
 }
 
 
@@ -364,11 +365,11 @@ def build_paywall(
     unimproved_left: int = 0,
 ) -> Paywall | None:
     """Pick copy + CTA based on trigger and current tier."""
-    if plan == "pro":
-        # Pro has no hard quota on AI; no meaningful upsell in MVP.
+    if plan == "agency":
+        # Agency has no hard quota on AI; no meaningful upsell in MVP.
         return None
 
-    cta = _NEXT_PLAN_CTA.get(plan, "Оформить Starter") or "Оформить Starter"
+    cta = _NEXT_PLAN_CTA.get(plan, "Оформить Pro") or "Оформить Pro"
 
     if trigger == "on_upload_exhausted":
         return Paywall(
@@ -379,9 +380,9 @@ def build_paywall(
     if trigger == "on_improve_all":
         hint = (
             f"Улучшите ещё {_humanise_ads(unimproved_left)} — "
-            f"в тарифе Starter доступно 50 AI-улучшений в месяц."
+            f"в тарифе Pro доступно 50 AI-улучшений в месяц."
             if unimproved_left > 0
-            else "Переходите на Starter, чтобы улучшать десятки объявлений сразу."
+            else "Переходите на Pro, чтобы улучшать десятки объявлений сразу."
         )
         return Paywall(
             trigger=trigger,
@@ -394,7 +395,7 @@ def build_paywall(
             trigger=trigger,
             message="Файл слишком большой для бесплатного тарифа.",
             cta=cta,
-            upgrade_hint="В Starter обрабатываем до 500 объявлений за раз.",
+            upgrade_hint="В Pro обрабатываем до 500 объявлений за раз.",
         )
     if trigger == "after_analysis":
         return Paywall(

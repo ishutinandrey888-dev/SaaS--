@@ -26,7 +26,7 @@ celery_app = Celery(
     "saas_direct",
     broker=settings.redis_url,
     backend=settings.redis_url,
-    include=["app.tasks.excel_jobs"],
+    include=["app.tasks.agent_tasks"],
 )
 
 celery_app.conf.update(

@@ -18,7 +18,7 @@ from typing import Any
 from openai import AsyncOpenAI, OpenAIError
 
 from app.core.config import get_settings
-from app.services.excel_import import HEADLINE_MAX, TEXT_MAX
+from app.core.limits import HEADLINE_MAX, TEXT_MAX
 
 settings = get_settings()
 logger = logging.getLogger("ai_ads")

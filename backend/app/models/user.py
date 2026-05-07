@@ -2,17 +2,12 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, Integer, String, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
-
-if TYPE_CHECKING:
-    from app.models.campaign import Campaign
-    from app.models.subscription import Subscription
 
 
 class User(Base):
@@ -53,9 +48,3 @@ class User(Base):
         nullable=False,
     )
 
-    campaigns: Mapped[list["Campaign"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
-    )
-    subscription: Mapped["Subscription | None"] = relationship(
-        back_populates="user", uselist=False, cascade="all, delete-orphan"
-    )
