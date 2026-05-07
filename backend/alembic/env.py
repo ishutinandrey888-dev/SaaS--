@@ -8,15 +8,18 @@ from sqlalchemy import engine_from_config, pool
 from app.core.config import get_settings
 from app.core.database import Base
 from app.models import (  # noqa: F401 -- ensure models are registered
-    Ad,
-    AnalystAction,
+    AdAccount,
+    Agent,
+    AiRun,
+    AuditFinding,
     AuditLog,
-    Campaign,
-    Keyword,
-    KpiSnapshot,
+    Event,
     LoginAttempt,
-    ReportUpload,
-    Subscription,
+    Notification,
+    Payment,
+    Project,
+    PromptVersion,
+    UsageCounter,
     User,
 )
 
