@@ -2,6 +2,7 @@ import type { Config } from "tailwindcss";
 
 const config: Config = {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
+  darkMode: "class",
   theme: {
     extend: {
       fontFamily: {
@@ -9,16 +10,30 @@ const config: Config = {
       },
       colors: {
         brand: {
-          50: "#eef2ff",
-          100: "#e0e7ff",
-          500: "#6366f1",
-          600: "#4f46e5",
-          700: "#4338ca",
+          50: "#e8f5ec",
+          100: "#bfe3c9",
+          500: "#34c759",
+          600: "#2aa84a",
+          700: "#219c46",
+          800: "#1b7f3a",
+        },
+        ink: {
+          0: "#0a0d12",
+          50: "#0f141b",
+          100: "#141a23",
+          200: "#1b232f",
+          300: "#27313f",
+          400: "#3a4555",
+          500: "#586577",
+          600: "#8e9aaa",
+          700: "#b9c3d2",
+          800: "#dde3ec",
+          900: "#f2f5fa",
         },
       },
       boxShadow: {
-        soft: "0 4px 30px rgba(15, 23, 42, 0.06)",
-        card: "0 8px 40px rgba(15, 23, 42, 0.08)",
+        soft: "0 4px 30px rgba(0, 0, 0, 0.3)",
+        card: "0 8px 40px rgba(0, 0, 0, 0.4)",
       },
     },
   },
