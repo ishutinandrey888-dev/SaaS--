@@ -4,80 +4,32 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft,
   ArrowRight,
-  FileSpreadsheet,
+  Bot,
+  CheckCircle2,
   Loader2,
+  Megaphone,
   Sparkles,
 } from "lucide-react";
-import { ApiError, AuthError, fetchDashboard } from "@/lib/api";
-import type { DashboardResponse, HistoryEntry } from "@/lib/types";
-import { cn, scoreTone } from "@/lib/utils";
+import { AppShell } from "@/components/app-shell";
+import {
+  ApiError,
+  AuthError,
+  fetchDashboard,
+  listAdAccounts,
+  listAgents,
+} from "@/lib/api";
+import type {
+  AdAccount,
+  Agent,
+  DashboardResponse,
+  HistoryEntry,
+} from "@/lib/types";
 
 type State =
   | { kind: "loading" }
-  | { kind: "ready"; data: DashboardResponse }
+  | { kind: "ready"; data: DashboardResponse; agents: Agent[]; accounts: AdAccount[] }
   | { kind: "error"; message: string };
-
-const TONE_CLASS = {
-  good: "text-emerald-600",
-  warn: "text-amber-600",
-  bad: "text-rose-600",
-} as const;
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return new Intl.DateTimeFormat("ru-RU", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(d);
-}
-
-function HistoryRow({ entry }: { entry: HistoryEntry }) {
-  const tone = scoreTone(entry.avg_score);
-  return (
-    <li className="flex items-center justify-between gap-4 rounded-2xl bg-white px-5 py-4 ring-1 ring-slate-200/70 shadow-soft">
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-500">
-          <FileSpreadsheet className="h-5 w-5" />
-        </span>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-slate-900">
-            {entry.filename}
-          </p>
-          <p className="mt-0.5 text-xs text-slate-500">
-            {formatDate(entry.created_at)} · {entry.total_ads} объявлени
-            {entry.total_ads === 1 ? "е" : "й"}
-            {entry.total_campaigns > 0 &&
-              ` · ${entry.total_campaigns} кампани${
-                entry.total_campaigns === 1 ? "я" : "й"
-              }`}
-          </p>
-        </div>
-      </div>
-      <div className="flex items-center gap-6">
-        <div className="text-right">
-          <p className="text-[11px] uppercase tracking-wide text-slate-400">
-            AI-улучшено
-          </p>
-          <p className="mt-0.5 text-sm font-medium text-slate-700">
-            {entry.improved_count}
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-[11px] uppercase tracking-wide text-slate-400">
-            Score
-          </p>
-          <p className={cn("mt-0.5 text-sm font-semibold", TONE_CLASS[tone])}>
-            {entry.avg_score.toFixed(1)}
-          </p>
-        </div>
-      </div>
-    </li>
-  );
-}
 
 function MetricCard({
   label,
@@ -89,19 +41,52 @@ function MetricCard({
   caption?: string;
 }) {
   return (
-    <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-200/70 shadow-soft">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+    <div className="card p-5">
+      <p className="text-xs font-medium uppercase tracking-wide text-ink-600">
         {label}
       </p>
-      <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">
+      <p className="mt-2 text-2xl font-semibold tracking-tight text-ink-900">
         {value}
       </p>
-      {caption && <p className="mt-1 text-xs text-slate-500">{caption}</p>}
+      {caption && <p className="mt-1 text-xs text-ink-600">{caption}</p>}
     </div>
   );
 }
 
-export default function DashboardPage() {
+function HistoryRow({ entry }: { entry: HistoryEntry }) {
+  return (
+    <li className="card flex items-center justify-between gap-4 px-5 py-4">
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-ink-200 text-ink-700">
+          <Bot className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-ink-900">
+            {entry.agent_name}
+          </p>
+          <p className="mt-0.5 text-xs text-ink-600">
+            {new Date(entry.started_at).toLocaleString("ru-RU")} ·{" "}
+            {entry.findings} находок · {entry.applied} применено
+          </p>
+        </div>
+      </div>
+      <span
+        className={
+          "rounded-lg px-2.5 py-1 text-xs font-medium " +
+          (entry.status === "succeeded"
+            ? "bg-brand-700/20 text-brand-500"
+            : entry.status === "running"
+              ? "bg-amber-500/20 text-amber-400"
+              : "bg-rose-500/20 text-rose-400")
+        }
+      >
+        {entry.status}
+      </span>
+    </li>
+  );
+}
+
+function DashboardContent() {
   const router = useRouter();
   const [state, setState] = useState<State>({ kind: "loading" });
 
@@ -109,12 +94,22 @@ export default function DashboardPage() {
     let cancelled = false;
     (async () => {
       try {
-        const data = await fetchDashboard();
-        if (!cancelled) setState({ kind: "ready", data });
+        const [data, agentsResp, accounts] = await Promise.all([
+          fetchDashboard(),
+          listAgents(),
+          listAdAccounts(),
+        ]);
+        if (!cancelled) {
+          setState({
+            kind: "ready",
+            data,
+            agents: agentsResp.agents,
+            accounts,
+          });
+        }
       } catch (error) {
         if (cancelled) return;
         if (error instanceof AuthError) {
-          window.alert("Требуется вход. Переадресация на /login.");
           router.push("/login");
           return;
         }
@@ -132,127 +127,185 @@ export default function DashboardPage() {
 
   if (state.kind === "loading") {
     return (
-      <main className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
-      </main>
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-ink-600" />
+      </div>
     );
   }
-
   if (state.kind === "error") {
     return (
-      <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center gap-4 px-6">
-        <p className="text-sm text-rose-600">{state.message}</p>
-        <Link
-          href="/"
-          className="text-sm text-brand-700 hover:text-brand-900"
-        >
-          Вернуться на главную →
-        </Link>
-      </main>
+      <div className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center gap-4 px-6">
+        <p className="text-sm text-rose-400">{state.message}</p>
+      </div>
     );
   }
 
-  const { data } = state;
-  const { totals, usage, limits, history } = data;
-  const aiCaption =
-    limits.ai_ads == null
-      ? `Использовано ${usage.ai_ads_used}`
-      : `Осталось ${usage.ai_ads_remaining ?? 0} из ${limits.ai_ads}`;
+  const { data, agents, accounts } = state;
+  const hasAccounts = accounts.some((a) => a.status === "active");
+  const hasAgents = agents.length > 0;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-5xl flex-col px-6 py-10">
-      <header className="flex items-center justify-between gap-4">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Загрузить ещё
-        </Link>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-700">
-          {data.plan}
-          {limits.watermark && (
-            <span className="inline-flex items-center gap-1 text-brand-700">
-              <Sparkles className="h-3 w-3" />
-              AI powered
-            </span>
-          )}
+    <div className="mx-auto max-w-6xl px-8 py-10">
+      <header className="flex items-end justify-between gap-4">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-ink-600">
+            Главная
+          </p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight">
+            Ваши AI-агенты
+          </h1>
+        </div>
+        <span className="rounded-full bg-ink-200 px-3 py-1 text-xs font-medium uppercase tracking-wide text-ink-700">
+          Тариф: {data.plan}
         </span>
       </header>
 
+      <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricCard
+          label="Активных агентов"
+          value={data.totals.active_agents}
+        />
+        <MetricCard label="Запусков" value={data.totals.runs} caption="за период" />
+        <MetricCard label="Применено" value={data.totals.applied} />
+        <MetricCard label="Ждут проверки" value={data.totals.pending} />
+      </section>
+
+      {(!hasAccounts || !hasAgents) && (
+        <section className="mt-8 card p-6">
+          <h2 className="text-base font-semibold">Начните за 2 шага</h2>
+          <ol className="mt-4 space-y-3 text-sm">
+            <li className="flex items-start gap-3">
+              {hasAccounts ? (
+                <CheckCircle2 className="mt-0.5 h-5 w-5 text-brand-500" />
+              ) : (
+                <span className="mt-0.5 grid h-5 w-5 place-items-center rounded-full border border-ink-500 text-[11px] text-ink-600">
+                  1
+                </span>
+              )}
+              <div className="flex-1">
+                <p className="font-medium">Подключите Яндекс Директ</p>
+                <p className="text-ink-600">
+                  Без OAuth-токена агент не сможет читать кампании.
+                </p>
+              </div>
+              {!hasAccounts && (
+                <Link href="/yandex" className="btn-secondary">
+                  Подключить
+                </Link>
+              )}
+            </li>
+            <li className="flex items-start gap-3">
+              {hasAgents ? (
+                <CheckCircle2 className="mt-0.5 h-5 w-5 text-brand-500" />
+              ) : (
+                <span className="mt-0.5 grid h-5 w-5 place-items-center rounded-full border border-ink-500 text-[11px] text-ink-600">
+                  2
+                </span>
+              )}
+              <div className="flex-1">
+                <p className="font-medium">Создайте первого AI-агента</p>
+                <p className="text-ink-600">
+                  Бриф + KPI + режим — и агент начнёт работу.
+                </p>
+              </div>
+              {!hasAgents && hasAccounts && (
+                <Link href="/analyst/new" className="btn-primary">
+                  Создать
+                </Link>
+              )}
+            </li>
+          </ol>
+        </section>
+      )}
+
       <section className="mt-8">
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-900">
-          Дашборд
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm text-slate-600">
-          {data.history_days == null
-            ? "Все ваши загрузки за всё время."
-            : `Загрузки за последние ${data.history_days} дней.`}
-        </p>
-      </section>
-
-      <section className="mt-6 grid gap-4 sm:grid-cols-2 md:grid-cols-4">
-        <MetricCard
-          label="Загрузок"
-          value={totals.uploads}
-          caption={
-            limits.uploads != null
-              ? `${usage.uploads_used}/${limits.uploads} в этом месяце`
-              : "без лимита"
-          }
-        />
-        <MetricCard
-          label="Объявлений"
-          value={totals.ads}
-          caption="за период"
-        />
-        <MetricCard
-          label="Улучшено AI"
-          value={totals.improved}
-          caption={aiCaption}
-        />
-        <MetricCard
-          label="Средний score"
-          value={totals.avg_score.toFixed(1)}
-          caption="за период"
-        />
-      </section>
-
-      <section className="mt-8 space-y-4">
-        <div className="flex items-end justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">История</h2>
-          <span className="text-xs text-slate-500">
-            {history.length} {history.length === 1 ? "запись" : "записей"}
-          </span>
+        <div className="mb-3 flex items-end justify-between">
+          <h2 className="text-lg font-semibold">Агенты</h2>
+          <Link
+            href="/analyst/new"
+            className="inline-flex items-center gap-1.5 text-sm text-brand-500 hover:text-brand-600"
+          >
+            Новый агент
+            <ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
-
-        {history.length === 0 ? (
-          <div className="rounded-2xl bg-white p-8 text-center ring-1 ring-slate-200/70">
-            <p className="text-sm text-slate-600">
-              Загрузок пока нет — начните с первой.
-            </p>
-            <Link
-              href="/"
-              className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-900"
-            >
-              Загрузить Excel
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+        {agents.length === 0 ? (
+          <div className="card p-8 text-center text-sm text-ink-600">
+            <Bot className="mx-auto mb-3 h-8 w-8 text-ink-500" />
+            Пока нет ни одного агента.
           </div>
         ) : (
-          <ul className="space-y-3">
-            {history.map((entry) => (
-              <HistoryRow key={entry.id} entry={entry} />
+          <ul className="grid gap-3 lg:grid-cols-2">
+            {agents.map((a) => (
+              <li key={a.id} className="card p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-semibold">{a.name}</p>
+                    <p className="mt-1 text-xs text-ink-600">
+                      Режим: {a.mode} · Статус: {a.status}
+                    </p>
+                  </div>
+                  <Link
+                    href={`/analyst/${a.id}`}
+                    className="btn-ghost text-xs"
+                  >
+                    Открыть →
+                  </Link>
+                </div>
+                {a.last_run_at && (
+                  <p className="mt-3 text-xs text-ink-600">
+                    Последний запуск:{" "}
+                    {new Date(a.last_run_at).toLocaleString("ru-RU")}
+                  </p>
+                )}
+              </li>
             ))}
           </ul>
         )}
       </section>
 
-      <footer className="mt-auto pt-16 text-xs text-slate-400">
-        {data.history_days != null && data.plan === "free"
-          ? "На тарифе Free доступна история за 7 дней. Starter — 30 дней, Pro — без ограничений."
-          : "История фиксируется автоматически после каждой загрузки."}
-      </footer>
-    </main>
+      <section className="mt-10">
+        <div className="mb-3 flex items-end justify-between">
+          <h2 className="text-lg font-semibold">Последние запуски</h2>
+          <span className="text-xs text-ink-600">
+            {data.history.length} записей
+          </span>
+        </div>
+        {data.history.length === 0 ? (
+          <div className="card p-8 text-center text-sm text-ink-600">
+            <Sparkles className="mx-auto mb-3 h-8 w-8 text-ink-500" />
+            Запустите первого агента, чтобы увидеть историю.
+          </div>
+        ) : (
+          <ul className="space-y-3">
+            {data.history.map((h) => (
+              <HistoryRow key={h.id} entry={h} />
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {!hasAccounts && (
+        <section className="mt-10 card flex items-center justify-between gap-4 p-5">
+          <div className="flex items-center gap-3">
+            <Megaphone className="h-5 w-5 text-brand-500" />
+            <p className="text-sm">
+              Подключите Яндекс Директ — чтобы агент получил доступ к кампаниям.
+            </p>
+          </div>
+          <Link href="/yandex" className="btn-primary">
+            Перейти
+          </Link>
+        </section>
+      )}
+    </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <AppShell>
+      <DashboardContent />
+    </AppShell>
   );
 }

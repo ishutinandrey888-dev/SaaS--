@@ -15,7 +15,7 @@ type State =
 function LoginInner() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") || "/";
+  const next = params.get("next") || "/dashboard";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -43,12 +43,12 @@ function LoginInner() {
   return (
     <main className="mx-auto flex min-h-screen max-w-md items-center px-6">
       <div className="w-full">
-        <h1 className="text-2xl font-semibold text-slate-900">Вход</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="text-2xl font-semibold">Вход</h1>
+        <p className="mt-1 text-sm text-ink-600">
           Нет аккаунта?{" "}
           <Link
             href="/register"
-            className="font-medium text-brand-700 hover:text-brand-800"
+            className="font-medium text-brand-500 hover:text-brand-600"
           >
             Зарегистрируйтесь
           </Link>
@@ -94,14 +94,14 @@ function LoginInner() {
           </Button>
 
           {state.kind === "error" && (
-            <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-200">
+            <p className="rounded-xl bg-rose-500/10 px-4 py-3 text-sm text-rose-300 ring-1 ring-rose-500/30">
               {state.message}
             </p>
           )}
         </form>
 
-        <p className="mt-8 text-center text-xs text-slate-400">
-          <Link href="/" className="hover:text-slate-600">
+        <p className="mt-8 text-center text-xs text-ink-600">
+          <Link href="/" className="hover:text-ink-800">
             На главную
           </Link>
         </p>
@@ -111,7 +111,7 @@ function LoginInner() {
 }
 
 const inputCls =
-  "block w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100";
+  "block w-full rounded-xl border border-ink-300/60 bg-ink-100 px-3.5 py-2.5 text-sm text-ink-900 placeholder:text-ink-600 focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700/30";
 
 function Field({
   label,
@@ -122,7 +122,7 @@ function Field({
 }) {
   return (
     <label className="block space-y-1.5">
-      <span className="text-sm font-medium text-slate-900">{label}</span>
+      <span className="text-sm font-medium">{label}</span>
       {children}
     </label>
   );

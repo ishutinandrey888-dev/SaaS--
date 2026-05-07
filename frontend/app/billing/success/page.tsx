@@ -3,15 +3,11 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  ArrowLeft,
-  CheckCircle2,
-  Loader2,
-  TriangleAlert,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { CheckCircle2, Loader2, TriangleAlert } from "lucide-react";
 import { ApiError, AuthError, fetchPaymentStatus } from "@/lib/api";
-import type { PaymentStatus, PaymentStatusResponse } from "@/lib/types";
+import type { PaymentStatusResponse } from "@/lib/types";
+
+type Status = PaymentStatusResponse["status"];
 
 type UiState =
   | { kind: "loading" }
@@ -23,13 +19,13 @@ type UiState =
 const POLL_INTERVAL_MS = 1500;
 const POLL_TIMEOUT_MS = 2 * 60 * 1000;
 
-function isTerminal(status: PaymentStatus): boolean {
+function isTerminal(status: Status): boolean {
   return status === "succeeded" || status === "failed" || status === "canceled";
 }
 
 function planLabel(plan: string): string {
-  if (plan === "starter") return "Starter";
   if (plan === "pro") return "Pro";
+  if (plan === "agency") return "Agency";
   return plan;
 }
 
@@ -106,28 +102,24 @@ function SuccessInner() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col px-6 py-12">
-      <Link
-        href="/settings"
-        className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        В настройки
+      <Link href="/settings" className="text-sm text-ink-600 hover:text-ink-900">
+        ← В настройки
       </Link>
 
-      <div className="mt-16 flex-1">
+      <div className="mt-12 flex-1">
         {state.kind === "missing" && (
           <Card>
-            <TriangleAlert className="h-10 w-10 text-amber-500" />
-            <h1 className="mt-5 text-2xl font-semibold text-slate-900">
+            <TriangleAlert className="h-10 w-10 text-amber-400" />
+            <h1 className="mt-5 text-2xl font-semibold">
               Параметр платежа не найден
             </h1>
-            <p className="mt-2 text-sm text-slate-600">
-              В адресе страницы нет идентификатора платежа. Вернитесь на страницу
-              настроек и попробуйте снова.
+            <p className="mt-2 text-sm text-ink-600">
+              В адресе страницы нет идентификатора платежа. Вернитесь в
+              настройки и попробуйте снова.
             </p>
             <div className="mt-6">
-              <Link href="/settings">
-                <Button>В настройки</Button>
+              <Link href="/settings" className="btn-primary">
+                В настройки
               </Link>
             </div>
           </Card>
@@ -135,16 +127,16 @@ function SuccessInner() {
 
         {(state.kind === "loading" || state.kind === "polling") && (
           <Card>
-            <Loader2 className="h-10 w-10 animate-spin text-brand-600" />
-            <h1 className="mt-5 text-2xl font-semibold text-slate-900">
+            <Loader2 className="h-10 w-10 animate-spin text-brand-500" />
+            <h1 className="mt-5 text-2xl font-semibold">
               Подтверждаем платёж…
             </h1>
-            <p className="mt-2 text-sm text-slate-600">
-              Обычно это занимает 5–30 секунд. Не закрывайте страницу.
+            <p className="mt-2 text-sm text-ink-600">
+              Обычно 5–30 секунд. Не закрывайте страницу.
             </p>
             {state.kind === "polling" && state.payment && (
-              <p className="mt-3 text-xs text-slate-400">
-                Тариф: {planLabel(state.payment.plan)} · {" "}
+              <p className="mt-3 text-xs text-ink-600">
+                Тариф: {planLabel(state.payment.plan)} ·{" "}
                 {(state.payment.amount / 100).toLocaleString("ru-RU")}{" "}
                 {state.payment.currency}
               </p>
@@ -154,21 +146,25 @@ function SuccessInner() {
 
         {state.kind === "done" && (
           <Card>
-            <CheckCircle2 className="h-10 w-10 text-emerald-600" />
-            <h1 className="mt-5 text-2xl font-semibold text-slate-900">
-              Тариф активирован
-            </h1>
-            <p className="mt-2 text-sm text-slate-600">
+            <CheckCircle2 className="h-10 w-10 text-brand-500" />
+            <h1 className="mt-5 text-2xl font-semibold">Тариф активирован</h1>
+            <p className="mt-2 text-sm text-ink-600">
               Мы подтвердили платёж по тарифу{" "}
-              <span className="font-semibold text-slate-900">
+              <span className="font-semibold">
                 {planLabel(state.payment.plan)}
               </span>
               . Новые лимиты уже доступны.
             </p>
             <div className="mt-6 flex gap-2">
-              <Button onClick={goDashboard}>В дашборд</Button>
-              <Link href="/settings">
-                <Button variant="secondary">В настройки</Button>
+              <button
+                type="button"
+                onClick={goDashboard}
+                className="btn-primary"
+              >
+                В дашборд
+              </button>
+              <Link href="/settings" className="btn-secondary">
+                В настройки
               </Link>
             </div>
           </Card>
@@ -176,14 +172,14 @@ function SuccessInner() {
 
         {state.kind === "failed" && (
           <Card>
-            <TriangleAlert className="h-10 w-10 text-rose-500" />
-            <h1 className="mt-5 text-2xl font-semibold text-slate-900">
+            <TriangleAlert className="h-10 w-10 text-rose-400" />
+            <h1 className="mt-5 text-2xl font-semibold">
               Не удалось завершить оплату
             </h1>
-            <p className="mt-2 text-sm text-slate-600">{state.message}</p>
+            <p className="mt-2 text-sm text-ink-600">{state.message}</p>
             <div className="mt-6 flex gap-2">
-              <Link href="/settings">
-                <Button>Попробовать ещё раз</Button>
+              <Link href="/settings" className="btn-primary">
+                Попробовать ещё раз
               </Link>
             </div>
           </Card>
@@ -194,15 +190,10 @@ function SuccessInner() {
 }
 
 function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-3xl bg-white p-8 ring-1 ring-slate-200/70 shadow-soft">
-      {children}
-    </div>
-  );
+  return <div className="card p-8">{children}</div>;
 }
 
 export default function SuccessPage() {
-  // useSearchParams requires a Suspense boundary in the App Router.
   return (
     <Suspense fallback={null}>
       <SuccessInner />
