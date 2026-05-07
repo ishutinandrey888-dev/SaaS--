@@ -1,62 +1,22 @@
-// Matches backend/app/schemas/excel.py
+// Shared TypeScript shapes for the ДОЖИМ-АЙ app.
 
-export interface AdOriginal {
-  row: number;
-  campaign: string;
-  group: string;
-  headline: string;
-  headline2: string | null;
-  text: string;
-  keywords: string[];
+export type PlanId = "free" | "pro" | "agency";
+export type PaidPlanId = "pro" | "agency";
+
+export interface UserOut {
+  id: string;
+  email: string;
+  full_name: string | null;
+  is_active: boolean;
+  is_verified: boolean;
+  plan: PlanId;
+  ai_ads_used_lifetime: number;
 }
 
-export interface AdAudit {
-  score: number;
-  issues: string[];
-  suggestions: string[];
-}
-
-export interface AdImproved {
-  headline: string;
-  text: string;
-  reasoning: string;
-}
-
-export interface AdResult {
-  original: AdOriginal;
-  audit: AdAudit;
-  improved: AdImproved | null;
-}
-
-export interface CampaignSummary {
-  name: string;
-  groups: string[];
-  ads_count: number;
-}
-
-export interface Summary {
-  total_ads: number;
-  total_campaigns: number;
-  avg_score: number;
-  improved_count: number;
-  campaigns: CampaignSummary[];
-}
-
-export interface Insights {
-  weak_ads_percent: number;
-  estimated_ctr_loss: string;
-}
-
-export interface ParseError {
-  row: number;
-  field: string;
-  message: string;
-}
-
-export type PlanId = "free" | "starter" | "pro";
+export type Me = UserOut;
 
 export interface Limits {
-  plan: PlanId;
+  plan: string;
   uploads: number | null;
   ai_ads: number | null;
   max_ads_per_upload: number;
@@ -69,61 +29,31 @@ export interface Usage {
   ai_ads_remaining: number | null;
 }
 
-export type PaywallTrigger =
-  | "after_analysis"
-  | "on_improve_all"
-  | "on_upload_exhausted"
-  | "on_ads_per_upload"
-  | "on_export_over_limit";
-
-export interface Paywall {
-  trigger: PaywallTrigger;
-  message: string;
-  cta: string;
-  upgrade_hint: string | null;
+export interface HistoryEntry {
+  id: string;
+  agent_id: string;
+  agent_name: string;
+  status: string;
+  findings: number;
+  applied: number;
+  started_at: string;
+  finished_at: string | null;
 }
 
-export interface CampaignIssue {
-  key: string;
-  label: string;
-  count: number;
+export interface HistoryTotals {
+  active_agents: number;
+  runs: number;
+  applied: number;
+  pending: number;
 }
 
-export type CampaignTone = "good" | "warn" | "bad";
-
-export interface CampaignAnalytics {
-  name: string;
-  groups: string[];
-  ads_count: number;
-  improved_count: number;
-  avg_score: number;
-  weak_ads_percent: number;
-  top_issues: CampaignIssue[];
-  recommendations: string[];
-  tone: CampaignTone;
-}
-
-export interface ExcelUploadResponse {
-  summary: Summary;
-  ads: AdResult[];
-  errors: ParseError[];
-  insights: Insights;
-  plan: PlanId;
+export interface DashboardResponse {
+  plan: string;
   limits: Limits;
   usage: Usage;
-  paywall: Paywall | null;
-  campaign_analytics: CampaignAnalytics[];
-}
-
-export interface UpgradeIntentRequest {
-  plan: PlanId;
-  trigger: string;
-  context?: Record<string, string | number | boolean | null>;
-}
-
-export interface UpgradeIntentResponse {
-  accepted: boolean;
-  message: string;
+  totals: HistoryTotals;
+  history: HistoryEntry[];
+  history_days: number | null;
 }
 
 export interface PlanInfo {
@@ -140,92 +70,10 @@ export interface PlansResponse {
   plans: PlanInfo[];
 }
 
-export interface HistoryEntry {
-  id: string;
-  filename: string;
-  total_ads: number;
-  total_campaigns: number;
-  improved_count: number;
-  weak_ads_percent: number;
-  avg_score: number;
-  created_at: string;
-}
-
-export interface HistoryTotals {
-  uploads: number;
-  ads: number;
-  improved: number;
-  avg_score: number;
-}
-
-export interface DashboardResponse {
-  plan: PlanId;
-  limits: Limits;
-  usage: Usage;
-  totals: HistoryTotals;
-  history: HistoryEntry[];
-  history_days: number | null;
-}
-
-export interface AdForExport {
-  campaign: string;
-  group: string;
-  headline: string;
-  headline2: string | null;
-  text: string;
-  keywords: string[];
-}
-
-export interface ExportRequest {
-  ads: AdForExport[];
-  filename?: string;
-}
-
-export interface ImprovedAdRow {
-  row: number;
-  improved: AdImproved;
-}
-
-export type JobState = "queued" | "running" | "done" | "failed";
-
-export interface JobCreatedResponse {
-  job_id: string;
-  state: JobState;
-}
-
-export interface JobStateResponse {
-  job_id: string;
-  state: JobState;
-  result: ExcelUploadResponse | null;
-  error: string | null;
-}
-
-export interface ImproveAllResponse {
-  improved: ImprovedAdRow[];
-  improved_count: number;
-  requested_count: number;
-  plan: PlanId;
-  limits: Limits;
-  usage: Usage;
-  paywall: Paywall | null;
-}
-
-export interface Me {
-  id: string;
-  email: string;
-  full_name: string | null;
-  is_active: boolean;
-  is_verified: boolean;
-  created_at: string;
-}
-
-export type PaidPlanId = "starter" | "pro";
-export type PaymentStatus = "pending" | "succeeded" | "failed" | "canceled";
-
 export interface CreatePaymentResponse {
   payment_id: string;
   confirmation_url: string;
-  status: PaymentStatus;
+  status: "pending" | "succeeded" | "failed" | "canceled";
 }
 
 export interface PaymentStatusResponse {
@@ -233,18 +81,133 @@ export interface PaymentStatusResponse {
   plan: PaidPlanId;
   amount: number;
   currency: string;
-  status: PaymentStatus;
+  status: "pending" | "succeeded" | "failed" | "canceled";
   created_at: string;
   paid_at: string | null;
 }
 
+export interface Project {
+  id: string;
+  name: string;
+  archived_at: string | null;
+  created_at: string;
+}
+
+export interface ProjectListResponse {
+  projects: Project[];
+}
+
+export interface AdAccount {
+  id: string;
+  project_id: string;
+  provider: "yandex_direct";
+  external_id: string;
+  status: "active" | "expired" | "revoked" | "error";
+  expires_at: string | null;
+  created_at: string;
+}
+
+export interface OAuthStartResponse {
+  url: string;
+  stub: boolean;
+}
+
+export type AgentMode = "advisor" | "assistant" | "auto";
+export type AgentStatus = "draft" | "active" | "paused" | "archived";
+
+export interface AgentBrief {
+  url?: string;
+  niche?: string;
+  audience?: string;
+  geo?: string;
+  notes?: string;
+}
+
+export interface AgentKpi {
+  cpa?: number;
+  ctr?: number;
+  romi?: number;
+  budget?: number;
+  goal?: string;
+}
+
+export interface Agent {
+  id: string;
+  project_id: string;
+  name: string;
+  mode: AgentMode;
+  status: AgentStatus;
+  brief: AgentBrief;
+  kpi: AgentKpi;
+  ad_account_ids: string[];
+  last_run_at: string | null;
+  next_run_at: string | null;
+  created_at: string;
+}
+
+export interface AgentListResponse {
+  agents: Agent[];
+}
+
+export interface AgentCreatePayload {
+  project_id: string;
+  name: string;
+  mode: AgentMode;
+  brief: AgentBrief;
+  kpi: AgentKpi;
+  ad_account_ids: string[];
+}
+
+export interface AgentPatchPayload {
+  name?: string;
+  mode?: AgentMode;
+  brief?: AgentBrief;
+  kpi?: AgentKpi;
+  ad_account_ids?: string[];
+}
+
+export interface Run {
+  id: string;
+  agent_id: string;
+  status: "running" | "succeeded" | "failed" | "canceled";
+  started_at: string;
+  finished_at: string | null;
+  stats: Record<string, unknown>;
+  error: string | null;
+}
+
+export interface RunListResponse {
+  runs: Run[];
+}
+
+export interface Finding {
+  id: string;
+  run_id: string;
+  agent_id: string;
+  kind: "issue" | "opportunity" | "applied";
+  severity: "critical" | "warning" | "info" | "opportunity";
+  campaign_external_id: string | null;
+  ad_external_id: string | null;
+  title: string;
+  effect: string | null;
+  suggested_action: Record<string, unknown> | null;
+  confidence: number;
+  state: "new" | "approved" | "applied" | "rejected";
+  applied_at: string | null;
+  created_at: string;
+}
+
+export interface FindingListResponse {
+  findings: Finding[];
+}
+
 export interface FunnelMetricsResponse {
   signups: number;
-  uploaders: number;
-  improvers: number;
+  connectors: number;
+  activators: number;
   payers: number;
   revenue_minor: number;
-  upload_rate: number;
-  improve_rate: number;
+  connect_rate: number;
+  activate_rate: number;
   pay_rate: number;
 }

@@ -1,20 +1,25 @@
 import type {
-  AdOriginal,
+  AdAccount,
+  Agent,
+  AgentBrief,
+  AgentCreatePayload,
+  AgentKpi,
+  AgentListResponse,
+  AgentPatchPayload,
   CreatePaymentResponse,
   DashboardResponse,
-  ExcelUploadResponse,
-  ExportRequest,
+  Finding,
+  FindingListResponse,
   FunnelMetricsResponse,
-  ImproveAllResponse,
-  JobCreatedResponse,
-  JobState,
-  JobStateResponse,
   Me,
+  OAuthStartResponse,
   PaidPlanId,
   PaymentStatusResponse,
   PlansResponse,
-  UpgradeIntentRequest,
-  UpgradeIntentResponse,
+  ProjectListResponse,
+  Project,
+  Run,
+  RunListResponse,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -40,172 +45,42 @@ async function raise(response: Response): Promise<never> {
     const body = await response.json();
     if (typeof body?.detail === "string") detail = body.detail;
   } catch {
-    // ignore
+    /* ignore */
   }
   throw new ApiError(response.status, detail);
 }
 
-export async function uploadExcel(file: File): Promise<ExcelUploadResponse> {
-  const form = new FormData();
-  form.append("file", file);
-
-  const response = await fetch(`${API_BASE}/excel/upload`, {
-    method: "POST",
-    credentials: "include",
-    body: form,
-  });
+async function get<T>(path: string): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, { credentials: "include" });
   if (!response.ok) await raise(response);
-  return (await response.json()) as ExcelUploadResponse;
+  return (await response.json()) as T;
 }
 
-export async function createExcelJob(file: File): Promise<JobCreatedResponse> {
-  const form = new FormData();
-  form.append("file", file);
-
-  const response = await fetch(`${API_BASE}/excel/jobs`, {
-    method: "POST",
+async function send<T>(
+  path: string,
+  method: "POST" | "PATCH" | "DELETE",
+  body?: unknown,
+): Promise<T> {
+  const init: RequestInit = {
+    method,
     credentials: "include",
-    body: form,
-  });
-  if (!response.ok) await raise(response);
-  return (await response.json()) as JobCreatedResponse;
-}
-
-export async function fetchExcelJob(jobId: string): Promise<JobStateResponse> {
-  const response = await fetch(`${API_BASE}/excel/jobs/${encodeURIComponent(jobId)}`, {
-    credentials: "include",
-  });
-  if (!response.ok) await raise(response);
-  return (await response.json()) as JobStateResponse;
-}
-
-/**
- * Submit file, poll every second until done/failed (or timeout).
- * `onState` fires on every state transition, so the UI can show
- * "queued" vs "running" copy without owning the polling loop.
- */
-export async function uploadExcelViaJob(
-  file: File,
-  onState?: (state: JobState) => void,
-): Promise<ExcelUploadResponse> {
-  const created = await createExcelJob(file);
-  onState?.(created.state);
-
-  const startedAt = Date.now();
-  const timeoutMs = 3 * 60 * 1000;
-  const intervalMs = 1000;
-  let lastState: JobState = created.state;
-
-  while (true) {
-    if (Date.now() - startedAt > timeoutMs) {
-      throw new ApiError(504, "job_timeout");
-    }
-    await new Promise((r) => setTimeout(r, intervalMs));
-    const poll = await fetchExcelJob(created.job_id);
-    if (poll.state !== lastState) {
-      lastState = poll.state;
-      onState?.(poll.state);
-    }
-    if (poll.state === "done" && poll.result) {
-      return poll.result;
-    }
-    if (poll.state === "failed") {
-      throw new ApiError(500, poll.error ?? "job_failed");
-    }
+    headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  };
+  const response = await fetch(`${API_BASE}${path}`, init);
+  if (!response.ok) {
+    if (method === "DELETE" && response.status === 204) return undefined as T;
+    await raise(response);
   }
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
 }
 
-export async function improveAll(
-  ads: AdOriginal[],
-): Promise<ImproveAllResponse> {
-  const response = await fetch(`${API_BASE}/excel/improve-all`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ads }),
-  });
-  if (!response.ok) await raise(response);
-  return (await response.json()) as ImproveAllResponse;
-}
-
-export async function exportExcel(request: ExportRequest): Promise<Blob> {
-  const response = await fetch(`${API_BASE}/excel/export`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-  });
-  if (!response.ok) await raise(response);
-  return await response.blob();
-}
-
-export async function fetchDashboard(): Promise<DashboardResponse> {
-  const response = await fetch(`${API_BASE}/dashboard`, {
-    credentials: "include",
-  });
-  if (!response.ok) await raise(response);
-  return (await response.json()) as DashboardResponse;
-}
-
-export async function fetchPlans(): Promise<PlansResponse> {
-  const response = await fetch(`${API_BASE}/billing/plans`, {
-    credentials: "include",
-  });
-  if (!response.ok) await raise(response);
-  return (await response.json()) as PlansResponse;
-}
-
-export async function postUpgradeIntent(
-  body: UpgradeIntentRequest,
-): Promise<UpgradeIntentResponse> {
-  const response = await fetch(`${API_BASE}/billing/upgrade-intent`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) await raise(response);
-  return (await response.json()) as UpgradeIntentResponse;
-}
-
-export async function createPayment(
-  plan: PaidPlanId,
-): Promise<CreatePaymentResponse> {
-  const response = await fetch(`${API_BASE}/billing/create-payment`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ plan }),
-  });
-  if (!response.ok) await raise(response);
-  return (await response.json()) as CreatePaymentResponse;
-}
-
-export async function fetchPaymentStatus(
-  paymentId: string,
-): Promise<PaymentStatusResponse> {
-  const response = await fetch(
-    `${API_BASE}/billing/status/${encodeURIComponent(paymentId)}`,
-    { credentials: "include" },
-  );
-  if (!response.ok) await raise(response);
-  return (await response.json()) as PaymentStatusResponse;
-}
-
-export async function fetchAdminMetrics(): Promise<FunnelMetricsResponse> {
-  const response = await fetch(`${API_BASE}/admin/metrics`, {
-    credentials: "include",
-  });
-  if (!response.ok) await raise(response);
-  return (await response.json()) as FunnelMetricsResponse;
-}
-
+// ---------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------
 export async function fetchMe(): Promise<Me> {
-  const response = await fetch(`${API_BASE}/auth/me`, {
-    credentials: "include",
-  });
-  if (!response.ok) await raise(response);
-  return (await response.json()) as Me;
+  return get<Me>("/auth/me");
 }
 
 export async function logout(): Promise<void> {
@@ -232,10 +107,7 @@ export async function register(payload: RegisterPayload): Promise<void> {
   if (!response.ok) await raise(response);
 }
 
-export async function login(
-  email: string,
-  password: string,
-): Promise<void> {
+export async function login(email: string, password: string): Promise<void> {
   const response = await fetch(`${API_BASE}/auth/login`, {
     method: "POST",
     credentials: "include",
@@ -244,6 +116,113 @@ export async function login(
   });
   if (!response.ok) await raise(response);
 }
+
+// ---------------------------------------------------------------------
+// Dashboard / billing
+// ---------------------------------------------------------------------
+export async function fetchDashboard(): Promise<DashboardResponse> {
+  return get<DashboardResponse>("/dashboard");
+}
+
+export async function fetchPlans(): Promise<PlansResponse> {
+  return get<PlansResponse>("/billing/plans");
+}
+
+export async function createPayment(plan: PaidPlanId): Promise<CreatePaymentResponse> {
+  return send<CreatePaymentResponse>("/billing/create-payment", "POST", { plan });
+}
+
+export async function fetchPaymentStatus(paymentId: string): Promise<PaymentStatusResponse> {
+  return get<PaymentStatusResponse>(`/billing/status/${encodeURIComponent(paymentId)}`);
+}
+
+// ---------------------------------------------------------------------
+// Projects
+// ---------------------------------------------------------------------
+export async function listProjects(): Promise<ProjectListResponse> {
+  return get<ProjectListResponse>("/projects");
+}
+
+export async function createProject(name: string): Promise<Project> {
+  return send<Project>("/projects", "POST", { name });
+}
+
+export async function archiveProject(projectId: string): Promise<void> {
+  await send<void>(`/projects/${projectId}`, "DELETE");
+}
+
+// ---------------------------------------------------------------------
+// Yandex Direct accounts
+// ---------------------------------------------------------------------
+export async function startYandexOAuth(projectId: string): Promise<OAuthStartResponse> {
+  return get<OAuthStartResponse>(
+    `/yandex/oauth/start?project_id=${encodeURIComponent(projectId)}`,
+  );
+}
+
+export async function listAdAccounts(): Promise<AdAccount[]> {
+  return get<AdAccount[]>("/yandex/ad-accounts");
+}
+
+export async function disconnectAdAccount(accountId: string): Promise<void> {
+  await send<void>(`/yandex/ad-accounts/${accountId}`, "DELETE");
+}
+
+// ---------------------------------------------------------------------
+// Agents
+// ---------------------------------------------------------------------
+export async function listAgents(): Promise<AgentListResponse> {
+  return get<AgentListResponse>("/agents");
+}
+
+export async function createAgent(payload: AgentCreatePayload): Promise<Agent> {
+  return send<Agent>("/agents", "POST", payload);
+}
+
+export async function patchAgent(
+  agentId: string,
+  payload: AgentPatchPayload,
+): Promise<Agent> {
+  return send<Agent>(`/agents/${agentId}`, "PATCH", payload);
+}
+
+export async function launchAgent(agentId: string): Promise<Agent> {
+  return send<Agent>(`/agents/${agentId}/launch`, "POST");
+}
+
+export async function pauseAgent(agentId: string): Promise<Agent> {
+  return send<Agent>(`/agents/${agentId}/pause`, "POST");
+}
+
+export async function runAgent(agentId: string): Promise<Agent> {
+  return send<Agent>(`/agents/${agentId}/run`, "POST");
+}
+
+export async function listAgentRuns(agentId: string): Promise<RunListResponse> {
+  return get<RunListResponse>(`/agents/${agentId}/runs`);
+}
+
+export async function listAgentFindings(agentId: string): Promise<FindingListResponse> {
+  return get<FindingListResponse>(`/agents/${agentId}/findings`);
+}
+
+export async function approveFinding(findingId: string): Promise<Finding> {
+  return send<Finding>(`/agents/findings/${findingId}/approve`, "POST");
+}
+
+export async function rejectFinding(findingId: string): Promise<Finding> {
+  return send<Finding>(`/agents/findings/${findingId}/reject`, "POST");
+}
+
+// ---------------------------------------------------------------------
+// Admin
+// ---------------------------------------------------------------------
+export async function fetchAdminMetrics(): Promise<FunnelMetricsResponse> {
+  return get<FunnelMetricsResponse>("/admin/metrics");
+}
+
+// Compatibility shim — wizard wants this name.
+export type { AgentBrief, AgentKpi, Run };
 
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
