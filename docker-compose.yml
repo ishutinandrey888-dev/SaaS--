@@ -7,13 +7,15 @@
 #               deploy/init-postgres.sql (runs once on an empty volume).
 #   redis     — Celery broker/result backend.
 #   backend   — FastAPI + Alembic migrations on start.
-#   worker    — Celery worker for async /excel/jobs.
+#   worker    — Celery worker for agent runs.
+#   beat      — Celery beat scheduler that ticks active agents.
 #   frontend  — Next.js standalone server, talks to the backend.
 #
-# After `up` settles, open http://localhost:3000 and register.  The
-# payment flow runs in stub mode (no YooKassa key required) — the
-# confirmation URL lands you straight on /billing/success and the
-# plan is auto-granted.
+# After `up` settles, open http://localhost:3000 and register.
+# Both Robokassa (payments) and Yandex Direct (OAuth) run in stub mode
+# when their credentials are empty: payments auto-succeed, the Yandex
+# OAuth callback fabricates a fake ad_account so the agent flow has
+# something to demo without registering external apps.
 #
 # To nuke everything (DB + uploads):
 #   docker compose down -v
@@ -71,14 +73,23 @@ services:
       # Drop a real key in .env (see .env.example) to enable rewriting.
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
-      # YUKASSA_* empty → payment stub: /billing/success flow works
-      # without any real provider account.
-      YUKASSA_SHOP_ID: ""
-      YUKASSA_SECRET_KEY: ""
-      # Grant admin /admin/metrics access by setting this to your
-      # registered email (the address you used to sign up).
+      # ROBOKASSA_* empty → payment stub: /billing/success auto-completes.
+      ROBOKASSA_MERCHANT_LOGIN: ${ROBOKASSA_MERCHANT_LOGIN:-}
+      ROBOKASSA_PASSWORD1: ${ROBOKASSA_PASSWORD1:-}
+      ROBOKASSA_PASSWORD2: ${ROBOKASSA_PASSWORD2:-}
+      ROBOKASSA_TEST_MODE: ${ROBOKASSA_TEST_MODE:-true}
+      ROBOKASSA_WEBHOOK_IPS: ${ROBOKASSA_WEBHOOK_IPS:-}
+      # YANDEX_DIRECT_* empty → OAuth stub: callback fakes a Direct account.
+      YANDEX_DIRECT_CLIENT_ID: ${YANDEX_DIRECT_CLIENT_ID:-}
+      YANDEX_DIRECT_CLIENT_SECRET: ${YANDEX_DIRECT_CLIENT_SECRET:-}
+      YANDEX_DIRECT_OAUTH_REDIRECT_URL: ${YANDEX_DIRECT_OAUTH_REDIRECT_URL:-http://localhost:8000/yandex/oauth/callback}
+      YANDEX_DIRECT_API_BASE: ${YANDEX_DIRECT_API_BASE:-https://api.direct.yandex.com/json/v5}
+      # Admin /admin/metrics access by registered email.
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}
-      FERNET_KEY: ${FERNET_KEY:-}
+      # FERNET_KEY is required for encrypting OAuth tokens.  Generate one
+      # locally with:
+      #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+      FERNET_KEY: ${FERNET_KEY:-zZmU5ZjQyZGFiMzQwODhlNGY3OTUyMTJmZGRiOTM=}
     command: >
       sh -c "alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000"
@@ -103,8 +114,30 @@ services:
       REDIS_URL: redis://redis:6379/0
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
-      FERNET_KEY: ${FERNET_KEY:-}
+      YANDEX_DIRECT_CLIENT_ID: ${YANDEX_DIRECT_CLIENT_ID:-}
+      YANDEX_DIRECT_CLIENT_SECRET: ${YANDEX_DIRECT_CLIENT_SECRET:-}
+      YANDEX_DIRECT_API_BASE: ${YANDEX_DIRECT_API_BASE:-https://api.direct.yandex.com/json/v5}
+      FERNET_KEY: ${FERNET_KEY:-zZmU5ZjQyZGFiMzQwODhlNGY3OTUyMTJmZGRiOTM=}
     command: ["celery", "-A", "app.tasks.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+
+  beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    depends_on:
+      backend:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    environment:
+      ENV: dev
+      DATABASE_URL_ADMIN: postgresql+asyncpg://postgres:postgres@postgres:5432/saas_direct
+      DATABASE_URL_USER: postgresql+asyncpg://app_user:postgres@postgres:5432/saas_direct
+      DATABASE_URL_SYNC: postgresql+psycopg2://postgres:postgres@postgres:5432/saas_direct
+      JWT_SECRET: dev-secret-do-not-use-in-production-min-32-chars
+      REDIS_URL: redis://redis:6379/0
+      FERNET_KEY: ${FERNET_KEY:-zZmU5ZjQyZGFiMzQwODhlNGY3OTUyMTJmZGRiOTM=}
+    command: ["celery", "-A", "app.tasks.celery_app", "beat", "--loglevel=info"]
 
   frontend:
     build:

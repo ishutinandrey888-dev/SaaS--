@@ -23,25 +23,29 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services import payments_yookassa as provider
+from app.services import payments_robokassa as provider
 
 logger = logging.getLogger("payments")
 
 PLAN_PERIOD_DAYS = 31
 
-# Map provider states to our internal enum.
-_YOOKASSA_STATUS = {
+# Map provider statuses → internal enum.  Robokassa hits the Result URL
+# only on successful payment; the redirect URL is hit by the user on
+# both success and cancellation, so /billing/success polls /status to
+# decide.  Stub: pending immediately becomes succeeded so the dev demo
+# completes without external calls.
+_ROBOKASSA_STATUS = {
     "succeeded": "succeeded",
     "canceled": "canceled",
+    "failed": "failed",
     "pending": "pending",
-    "waiting_for_capture": "pending",
 }
 
 
 def _map_provider_status(provider_name: str, status: str) -> str:
     if provider_name == "stub":
         return "succeeded" if status in ("succeeded", "pending") else "failed"
-    return _YOOKASSA_STATUS.get(status, "pending")
+    return _ROBOKASSA_STATUS.get(status, "pending")
 
 
 # ---------------------------------------------------------------------

@@ -34,7 +34,7 @@ from app.schemas.billing import (
     UpgradeIntentResponse,
     WebhookAck,
 )
-from app.services import audit, payments, payments_yookassa
+from app.services import audit, payments, payments_robokassa
 from app.services.billing import PLANS, get_plan
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -190,28 +190,30 @@ def _webhook_client_ip(request: Request) -> str | None:
 )
 @limiter.limit("120/minute")
 async def payments_webhook(request: Request) -> WebhookAck:
-    """Provider callback.
+    """Robokassa Result URL.
 
-    Opens its own admin session — webhooks carry no JWT and we need
-    to write to `users` (owned by another user).  The provider is
-    YooKassa today; to support Stripe/another later, branch here on
-    headers / URL prefix and call the right parser.
-
-    Authentication is by source IP allowlist — YooKassa doesn't sign
-    webhooks.  Empty config falls back to loopback only.
+    Robokassa POSTs `application/x-www-form-urlencoded`, not JSON.  We
+    validate `SignatureValue` (MD5 over OutSum:InvId:password2:shp_*)
+    before trusting the body.  IP allowlist is a secondary defence —
+    optional once signatures pass.
     """
     client_ip = _webhook_client_ip(request)
-    if not payments_yookassa.is_webhook_source_allowed(client_ip):
+    if not payments_robokassa.is_webhook_source_allowed(client_ip):
         logger.warning("webhook_denied ip=%s", client_ip)
-        # 404 rather than 403 so we don't advertise the surface.
         raise HTTPException(status_code=404, detail="not_found")
 
     try:
-        payload = await request.json()
+        form = await request.form()
     except Exception:  # noqa: BLE001
-        raise HTTPException(status_code=400, detail="invalid_json")
+        raise HTTPException(status_code=400, detail="invalid_form")
 
-    provider_name = "yookassa"
+    payload = {k: v for k, v in form.items()}
+
+    if not payments_robokassa.verify_webhook_signature(payload):
+        logger.warning("webhook_signature_invalid ip=%s", client_ip)
+        raise HTTPException(status_code=400, detail="bad_signature")
+
+    provider_name = "robokassa"
 
     async with AsyncSessionAdmin() as session:
         session.info["kind"] = "admin"

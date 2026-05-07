@@ -32,6 +32,10 @@ os.environ.setdefault(
 os.environ.setdefault("JWT_SECRET", "test-secret-at-least-32-characters-long-xxx")
 os.environ.setdefault("OPENAI_API_KEY", "")
 os.environ.setdefault("REDIS_URL", "")
+# A valid Fernet key so encrypt/decrypt smoke tests don't crash.
+os.environ.setdefault(
+    "FERNET_KEY", "zZmU5ZjQyZGFiMzQwODhlNGY3OTUyMTJmZGRiOTM="
+)
 
 import pytest  # noqa: E402
 

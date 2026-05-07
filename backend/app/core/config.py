@@ -49,15 +49,30 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://localhost:6379/0"
 
-    yukassa_shop_id: str = ""
-    yukassa_secret_key: str = ""
-    # Comma-separated CIDR / IP list.  The /billing/webhook handler
-    # only accepts POSTs from these sources.  Empty means "dev mode" —
-    # we fall back to loopback only, so an unconfigured prod deploy
-    # still can't be upgraded by a random internet host.
-    yukassa_webhook_ips: str = ""
+    # Robokassa: signature-validated webhooks.  Keep two passwords:
+    # password1 signs outgoing payment links, password2 verifies the
+    # provider's success-callback signature.  Empty merchant_login
+    # activates dev stub mode (see services.payments_robokassa).
+    robokassa_merchant_login: str = ""
+    robokassa_password1: str = ""
+    robokassa_password2: str = ""
+    robokassa_test_mode: bool = True
+    # Optional secondary line of defence; empty = accept any source after
+    # signature passes.
+    robokassa_webhook_ips: str = ""
     # Where the user is redirected back to after provider-hosted checkout.
     payment_return_url: str = "http://localhost:3000/billing/success"
+
+    # Yandex Direct OAuth.  Empty client_id → dev stub mode (the OAuth
+    # callback fabricates a fake account for local demos without going
+    # to id.yandex.ru).
+    yandex_direct_client_id: str = ""
+    yandex_direct_client_secret: str = ""
+    yandex_direct_oauth_redirect_url: str = (
+        "http://localhost:8000/yandex/oauth/callback"
+    )
+    # Optional sandbox base URL for Yandex Direct API (api-sandbox.direct.yandex.com).
+    yandex_direct_api_base: str = "https://api.direct.yandex.com/json/v5"
 
     pagespeed_api_key: str = ""
 
