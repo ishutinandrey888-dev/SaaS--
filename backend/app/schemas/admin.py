@@ -5,10 +5,10 @@ from pydantic import BaseModel
 
 class FunnelMetricsResponse(BaseModel):
     signups: int
-    uploaders: int
-    improvers: int
+    connectors: int
+    activators: int
     payers: int
     revenue_minor: int  # kopecks
-    upload_rate: float
-    improve_rate: float
+    connect_rate: float
+    activate_rate: float
     pay_rate: float

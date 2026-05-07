@@ -22,7 +22,7 @@ class Payment(Base):
     __tablename__ = "payments"
     __table_args__ = (
         CheckConstraint(
-            "plan IN ('starter', 'pro')", name="ck_payments_plan_values"
+            "plan IN ('pro', 'agency')", name="ck_payments_plan_values"
         ),
         CheckConstraint(
             "status IN ('pending', 'succeeded', 'failed', 'canceled')",

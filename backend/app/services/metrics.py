@@ -1,23 +1,17 @@
 """Funnel metrics from `audit_logs`.
 
-Computes the four funnel counts the founder cares about:
+Computes the four funnel counts the founder cares about for the agent product:
 
-  signups → uploaders → improvers → payers
+  signups → connectors → activators → payers
 
 We count *distinct user_id* per stage so each user contributes once,
 giving meaningful conversion ratios.
 
 Source rows by stage:
-  signups    — action = auth.register
-  uploaders  — action = excel.upload                  (sync /excel/upload)
-              + excel_job_succeeded surrogate         (-- not yet emitted; the
-                                                          /excel/jobs path
-                                                          relies on its task
-                                                          completing.  For
-                                                          MVP we accept the
-                                                          undercount.)
-  improvers  — action IN (excel.improve_all, start.generate)
-  payers     — action = payment.succeeded
+  signups     — action = auth.register
+  connectors  — action = oauth.yandex.granted
+  activators  — action = agent.launched
+  payers      — action = payment.succeeded
 
 Results are computed in a single SQL roundtrip; safe to call on every
 admin pageview at MVP scale.
@@ -35,22 +29,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 @dataclass(frozen=True)
 class FunnelMetrics:
     signups: int
-    uploaders: int
-    improvers: int
+    connectors: int
+    activators: int
     payers: int
-    revenue_minor: int  # sum of payments.amount where status=succeeded
+    revenue_minor: int
 
     @property
-    def upload_rate(self) -> float:
-        return self.uploaders / self.signups if self.signups else 0.0
+    def connect_rate(self) -> float:
+        return self.connectors / self.signups if self.signups else 0.0
 
     @property
-    def improve_rate(self) -> float:
-        return self.improvers / self.uploaders if self.uploaders else 0.0
+    def activate_rate(self) -> float:
+        return self.activators / self.connectors if self.connectors else 0.0
 
     @property
     def pay_rate(self) -> float:
-        return self.payers / self.improvers if self.improvers else 0.0
+        return self.payers / self.activators if self.activators else 0.0
 
 
 _FUNNEL_SQL = text(
@@ -61,11 +55,11 @@ _FUNNEL_SQL = text(
                 WHERE action = 'auth.register'
             ) AS signups,
             COUNT(DISTINCT user_id) FILTER (
-                WHERE action = 'excel.upload'
-            ) AS uploaders,
+                WHERE action = 'oauth.yandex.granted'
+            ) AS connectors,
             COUNT(DISTINCT user_id) FILTER (
-                WHERE action IN ('excel.improve_all', 'start.generate')
-            ) AS improvers,
+                WHERE action = 'agent.launched'
+            ) AS activators,
             COUNT(DISTINCT user_id) FILTER (
                 WHERE action = 'payment.succeeded'
             ) AS payers
@@ -78,7 +72,7 @@ _FUNNEL_SQL = text(
         WHERE status = 'succeeded'
     )
     SELECT
-        s.signups, s.uploaders, s.improvers, s.payers,
+        s.signups, s.connectors, s.activators, s.payers,
         r.revenue_minor
     FROM stages s, revenue r
     """
@@ -92,8 +86,8 @@ async def compute_funnel(session: AsyncSession) -> FunnelMetrics:
         return FunnelMetrics(0, 0, 0, 0, 0)
     return FunnelMetrics(
         signups=int(row["signups"] or 0),
-        uploaders=int(row["uploaders"] or 0),
-        improvers=int(row["improvers"] or 0),
+        connectors=int(row["connectors"] or 0),
+        activators=int(row["activators"] or 0),
         payers=int(row["payers"] or 0),
         revenue_minor=int(row["revenue_minor"] or 0),
     )
@@ -102,11 +96,11 @@ async def compute_funnel(session: AsyncSession) -> FunnelMetrics:
 def funnel_to_dict(m: FunnelMetrics) -> dict[str, Any]:
     return {
         "signups": m.signups,
-        "uploaders": m.uploaders,
-        "improvers": m.improvers,
+        "connectors": m.connectors,
+        "activators": m.activators,
         "payers": m.payers,
         "revenue_minor": m.revenue_minor,
-        "upload_rate": round(m.upload_rate, 4),
-        "improve_rate": round(m.improve_rate, 4),
+        "connect_rate": round(m.connect_rate, 4),
+        "activate_rate": round(m.activate_rate, 4),
         "pay_rate": round(m.pay_rate, 4),
     }

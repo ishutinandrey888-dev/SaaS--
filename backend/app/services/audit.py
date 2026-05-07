@@ -41,19 +41,22 @@ class Action:
     AUTH_REFRESH_FAILED = "auth.refresh.failed"
     AUTH_LOGOUT = "auth.logout"
 
-    CAMPAIGN_CREATE = "campaign.create"
-    CAMPAIGN_UPDATE = "campaign.update"
-    CAMPAIGN_DELETE = "campaign.delete"
+    OAUTH_YANDEX_GRANTED = "oauth.yandex.granted"
+    OAUTH_YANDEX_REVOKED = "oauth.yandex.revoked"
+    OAUTH_YANDEX_REFRESH = "oauth.yandex.refresh"
 
-    EXPORT_XLSX = "export.xlsx"
-    EXPORT_ACTIONS_XLSX = "export.actions_xlsx"
+    PROJECT_CREATED = "project.created"
+    PROJECT_DELETED = "project.deleted"
 
-    EXCEL_UPLOAD = "excel.upload"
-    EXCEL_IMPROVE_ALL = "excel.improve_all"
-
-    ANALYST_UPLOAD = "analyst.upload_report"
-    ANALYST_APPROVE = "analyst.approve_action"
-    ANALYST_REJECT = "analyst.reject_action"
+    AGENT_CREATED = "agent.created"
+    AGENT_LAUNCHED = "agent.launched"
+    AGENT_PAUSED = "agent.paused"
+    AGENT_RUN_STARTED = "agent.run.started"
+    AGENT_RUN_FINISHED = "agent.run.finished"
+    AGENT_RUN_FAILED = "agent.run.failed"
+    AGENT_FINDING_APPLIED = "agent.finding.applied"
+    AGENT_FINDING_APPROVED = "agent.finding.approved"
+    AGENT_FINDING_REJECTED = "agent.finding.rejected"
 
     PAYMENTS_WEBHOOK = "payments.webhook"
     PAYMENTS_SUBSCRIBE = "payments.subscribe"

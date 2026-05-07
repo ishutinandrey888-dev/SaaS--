@@ -7,17 +7,35 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-PlanId = Literal["free", "starter", "pro"]
-PaidPlanId = Literal["starter", "pro"]
+PlanId = Literal["free", "pro", "agency"]
+PaidPlanId = Literal["pro", "agency"]
 PaymentStatus = Literal["pending", "succeeded", "failed", "canceled"]
 
 
+class Limits(BaseModel):
+    plan: str
+    uploads: int | None
+    ai_ads: int | None
+    max_ads_per_upload: int
+    watermark: bool = False
+
+
+class Usage(BaseModel):
+    uploads_used: int
+    ai_ads_used: int
+    ai_ads_remaining: int | None
+
+
+class Paywall(BaseModel):
+    trigger: str
+    message: str
+    cta: str
+    upgrade_hint: str | None = None
+
+
 class UpgradeIntentRequest(BaseModel):
-    plan: PlanId = "starter"
-    # Where the click came from — used for conversion analytics.
+    plan: PlanId = "pro"
     trigger: str = Field(default="unknown", max_length=64)
-    # Arbitrary context (e.g. {"ads_left": 15}).  Size-capped by the
-    # `meta` column on audit_logs.
     context: dict[str, str | int | float | bool | None] | None = None
 
 

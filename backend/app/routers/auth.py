@@ -38,7 +38,6 @@ from app.core.security import (
 )
 from app.middleware.auth import CurrentUser, OptionalUser
 from app.middleware.rate_limit import BruteForceError, BruteForceGuard, limiter
-from app.models.subscription import Subscription
 from app.models.user import User
 from app.schemas.auth import (
     LoginRequest,
@@ -148,10 +147,6 @@ async def register(
             meta={"reason": "integrity_error", "email": email_norm},
         )
         raise HTTPException(status_code=409, detail="email_already_registered") from exc
-
-    # Free subscription row so every paying user has one to update later.
-    db.add(Subscription(user_id=user.id, plan="free", status="active"))
-    await db.flush()
 
     await audit.log(
         action=audit.Action.AUTH_REGISTER,

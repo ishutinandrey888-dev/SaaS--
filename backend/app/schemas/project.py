@@ -1,0 +1,23 @@
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class ProjectCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+
+
+class ProjectOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    archived_at: datetime | None
+    created_at: datetime
+
+
+class ProjectListResponse(BaseModel):
+    projects: list[ProjectOut]

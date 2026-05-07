@@ -17,9 +17,9 @@ class UsageCounter(Base):
     `period` is a "YYYY-MM" string — short, tz-free, sortable.
 
     `ai_ads_used` is the user-visible quota (matches the tier table).
-    `ai_requests_used` is internal: one /excel/upload call counts once,
-    regardless of how many ads it improved, so we can reason about
-    OpenAI spend per head.
+    `ai_requests_used` is internal: one agent run counts once,
+    regardless of how many findings it produced, so we can reason about
+    OpenAI/Yandex API spend per head.
     """
 
     __tablename__ = "usage_counters"

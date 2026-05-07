@@ -1,11 +1,11 @@
-"""Dashboard / retention surface.
+"""Dashboard surface for the agent product.
 
-Single GET endpoint that hydrates the /dashboard page in one round-trip:
-plan + current quota + recent uploads + window aggregates.
+Single GET endpoint that hydrates the home page in one round-trip:
+plan + current quota + agent counters + recent run window.
 
-Visibility is capped by `plan.history_days` (free=7, starter=30, pro=∞).
-RLS already filters `upload_history` to the owner; the cutoff is
-applied in SQL so paid tiers don't ship larger payloads than they need.
+Visibility is capped by `plan.history_days` (free=7, pro=30, agency=∞).
+RLS filters per-user; the cutoff is applied in SQL so paid tiers don't
+ship larger payloads than they need.
 """
 
 from __future__ import annotations
@@ -17,58 +17,66 @@ from sqlalchemy import text
 
 from app.core.database import UserDB
 from app.middleware.auth import CurrentUser
+from app.schemas.billing import Limits, Usage
 from app.schemas.dashboard import (
     DashboardResponse,
     HistoryEntry,
     HistoryTotals,
 )
-from app.schemas.excel import Limits, Usage
 from app.services import billing
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 logger = logging.getLogger("dashboard")
 
-_HISTORY_LIMIT = 50  # newest N rows the UI lists; older rows still hit totals.
+_HISTORY_LIMIT = 50
 
 _HISTORY_SQL_WINDOW = text(
     """
-    SELECT id, filename, total_ads, total_campaigns,
-           improved_count, weak_ads_percent, avg_score, created_at
-    FROM upload_history
-    WHERE created_at >= NOW() - (:days || ' days')::interval
-    ORDER BY created_at DESC
+    SELECT r.id, r.agent_id, a.name AS agent_name, r.status,
+           r.stats, r.started_at, r.finished_at
+    FROM ai_runs r
+    JOIN agents a ON a.id = r.agent_id
+    WHERE r.started_at >= NOW() - (:days || ' days')::interval
+    ORDER BY r.started_at DESC
     LIMIT :limit
     """
 )
 
 _HISTORY_SQL_ALL = text(
     """
-    SELECT id, filename, total_ads, total_campaigns,
-           improved_count, weak_ads_percent, avg_score, created_at
-    FROM upload_history
-    ORDER BY created_at DESC
+    SELECT r.id, r.agent_id, a.name AS agent_name, r.status,
+           r.stats, r.started_at, r.finished_at
+    FROM ai_runs r
+    JOIN agents a ON a.id = r.agent_id
+    ORDER BY r.started_at DESC
     LIMIT :limit
     """
 )
 
 _TOTALS_SQL_WINDOW = text(
     """
-    SELECT COUNT(*)              AS uploads,
-           COALESCE(SUM(total_ads), 0)      AS ads,
-           COALESCE(SUM(improved_count), 0) AS improved,
-           COALESCE(AVG(avg_score), 0)      AS avg_score
-    FROM upload_history
-    WHERE created_at >= NOW() - (:days || ' days')::interval
+    SELECT
+        (SELECT COUNT(*) FROM agents WHERE status = 'active')        AS active_agents,
+        (SELECT COUNT(*) FROM ai_runs
+            WHERE started_at >= NOW() - (:days || ' days')::interval) AS runs,
+        (SELECT COUNT(*) FROM audit_findings f
+            JOIN ai_runs r ON r.id = f.run_id
+            WHERE r.started_at >= NOW() - (:days || ' days')::interval
+            AND f.state = 'applied')                                  AS applied,
+        (SELECT COUNT(*) FROM audit_findings f
+            JOIN ai_runs r ON r.id = f.run_id
+            WHERE r.started_at >= NOW() - (:days || ' days')::interval
+            AND f.state = 'new')                                      AS pending
     """
 )
 
 _TOTALS_SQL_ALL = text(
     """
-    SELECT COUNT(*)              AS uploads,
-           COALESCE(SUM(total_ads), 0)      AS ads,
-           COALESCE(SUM(improved_count), 0) AS improved,
-           COALESCE(AVG(avg_score), 0)      AS avg_score
-    FROM upload_history
+    SELECT
+        (SELECT COUNT(*) FROM agents WHERE status = 'active')   AS active_agents,
+        (SELECT COUNT(*) FROM ai_runs)                          AS runs,
+        (SELECT COUNT(*) FROM audit_findings WHERE state='applied') AS applied,
+        (SELECT COUNT(*) FROM audit_findings WHERE state='new')     AS pending
     """
 )
 
@@ -101,9 +109,7 @@ async def get_dashboard(user: CurrentUser, db: UserDB) -> DashboardResponse:
     snap = await billing.get_usage(db, user.id, plan_id, lifetime)
 
     if plan.history_days is None:
-        rows_result = await db.execute(
-            _HISTORY_SQL_ALL, {"limit": _HISTORY_LIMIT}
-        )
+        rows_result = await db.execute(_HISTORY_SQL_ALL, {"limit": _HISTORY_LIMIT})
         totals_result = await db.execute(_TOTALS_SQL_ALL)
     else:
         rows_result = await db.execute(
@@ -116,25 +122,26 @@ async def get_dashboard(user: CurrentUser, db: UserDB) -> DashboardResponse:
 
     history: list[HistoryEntry] = []
     for r in rows_result.mappings().all():
+        stats = r["stats"] or {}
         history.append(
             HistoryEntry(
                 id=str(r["id"]),
-                filename=r["filename"],
-                total_ads=int(r["total_ads"]),
-                total_campaigns=int(r["total_campaigns"]),
-                improved_count=int(r["improved_count"]),
-                weak_ads_percent=int(r["weak_ads_percent"]),
-                avg_score=float(r["avg_score"]),
-                created_at=r["created_at"],
+                agent_id=str(r["agent_id"]),
+                agent_name=r["agent_name"],
+                status=r["status"],
+                findings=int(stats.get("findings", 0) or 0),
+                applied=int(stats.get("applied", 0) or 0),
+                started_at=r["started_at"],
+                finished_at=r["finished_at"],
             )
         )
 
     t = totals_result.mappings().first() or {}
     totals = HistoryTotals(
-        uploads=int(t.get("uploads", 0) or 0),
-        ads=int(t.get("ads", 0) or 0),
-        improved=int(t.get("improved", 0) or 0),
-        avg_score=round(float(t.get("avg_score", 0) or 0), 1),
+        active_agents=int(t.get("active_agents", 0) or 0),
+        runs=int(t.get("runs", 0) or 0),
+        applied=int(t.get("applied", 0) or 0),
+        pending=int(t.get("pending", 0) or 0),
     )
 
     return DashboardResponse(
