@@ -3,9 +3,13 @@
 @tailwind utilities;
 
 :root {
-  --background: 10 13 18; /* ink.0 */
-  --foreground: 242 245 250; /* ink.900 */
-  --muted: 142 154 170; /* ink.600 */
+  --background: 26 29 46; /* #1A1D2E — ink.0 */
+  --foreground: 241 243 248; /* ink.900 */
+  --muted: 142 149 179; /* ink.600 */
+}
+
+body {
+  font-family: 'Montserrat', system-ui, -apple-system, sans-serif;
 }
 
 html,

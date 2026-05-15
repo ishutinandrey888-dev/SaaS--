@@ -53,7 +53,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div
       className="flex min-h-screen"
       style={{
-        background: "#0B0E14",
+        background: "#1A1D2E",
         color: "#E2E8F0",
         fontFamily: "'Montserrat', system-ui, -apple-system, sans-serif",
       }}

@@ -26,7 +26,7 @@ const PLAN_INFO: Record<string, { color: string; label: string; price: number }>
 
 // Theme constants matching mockup
 const TH = {
-  bg: "#0B0E14",
+  bg: "#1A1D2E",
   card: "#13171F",
   bord: "rgba(255,255,255,0.06)",
   fg1: "#E2E8F0",
