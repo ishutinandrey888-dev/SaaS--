@@ -20,7 +20,7 @@
 # To nuke everything (DB + uploads):
 #   docker compose down -v
 
-name: saas-direct-demo
+name: dozim-ai
 
 services:
   postgres:
