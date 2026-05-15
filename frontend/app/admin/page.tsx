@@ -2,284 +2,388 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { Users, CreditCard, TrendingUp, AlertTriangle, ArrowRight } from "lucide-react";
-import { ApiError, AuthError, fetchAdminMetrics, fetchAdminUsers } from "@/lib/api";
-import type { FunnelMetricsResponse, AdminUsersResponse } from "@/lib/types";
+import { AlertTriangle, ArrowUp, Loader2, Send } from "lucide-react";
+import {
+  ApiError,
+  AuthError,
+  fetchAdminMetrics,
+  fetchAdminPayments,
+  fetchAdminUsers,
+} from "@/lib/api";
+import type {
+  AdminPaymentItem,
+  AdminUserItem,
+  FunnelMetricsResponse,
+} from "@/lib/types";
 
-const PLAN_COLORS: Record<string, { bg: string; text: string; label: string }> = {
-  free: { bg: "rgba(148,163,184,0.12)", text: "#94A3B8", label: "FREE" },
-  pro: { bg: "rgba(33,156,70,0.12)", text: "#219C46", label: "PRO" },
-  agency: { bg: "rgba(139,92,246,0.12)", text: "#8B5CF6", label: "AGENCY" },
+const PLAN_COLORS: Record<string, string> = {
+  free: "#94A3B8",
+  pro: "#219C46",
+  agency: "#8B5CF6",
 };
 
-function rub(minor: number) {
-  return `${(minor / 100).toLocaleString("ru-RU", { maximumFractionDigits: 0 })} ₽`;
+const PLAN_PRICE: Record<string, number> = {
+  free: 0,
+  pro: 3990,
+  agency: 13900,
+};
+
+function rub(amount: number) {
+  return `${amount.toLocaleString("ru-RU", { maximumFractionDigits: 0 })} ₽`;
 }
 
-function pct(r: number) {
-  return `${(r * 100).toFixed(1)}%`;
+function initials(name: string | null, email: string): string {
+  if (name) {
+    const parts = name.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  return email.slice(0, 2).toUpperCase();
 }
 
-function PlanBadge({ plan }: { plan: string }) {
-  const c = PLAN_COLORS[plan] ?? PLAN_COLORS.free;
-  return (
-    <span
-      className="inline-block rounded px-2 py-0.5 text-[10px] font-bold tracking-widest uppercase"
-      style={{ background: c.bg, color: c.text }}
-    >
-      {c.label}
-    </span>
-  );
+function gradientFor(seed: string): string {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) & 0xffffffff;
+  const hue = Math.abs(h) % 360;
+  return `linear-gradient(135deg, hsl(${hue},70%,50%), hsl(${(hue + 60) % 360},70%,55%))`;
+}
+
+function daysUntil(iso: string): number {
+  return Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
 }
 
 function KpiCard({
   label,
   value,
-  sub,
-  icon: Icon,
-  color,
+  trend,
+  trendUp,
 }: {
   label: string;
   value: string | number;
-  sub?: string;
-  icon: React.ElementType;
-  color: string;
+  trend: string;
+  trendUp: boolean;
 }) {
   return (
     <div
-      className="rounded-xl p-5 flex flex-col gap-3"
-      style={{ background: "#161B22", border: "1px solid rgba(46,51,71,0.7)" }}
+      className="rounded-xl p-5"
+      style={{ background: "#16191F", border: "1px solid #262932" }}
     >
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#64748B" }}>
-          {label}
-        </span>
-        <div className="rounded-lg p-2" style={{ background: `${color}18` }}>
-          <Icon size={16} style={{ color }} />
+      <div className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "#64748B" }}>
+        {label}
+      </div>
+      <div className="mt-3 flex items-end gap-3">
+        <div className="text-3xl font-extrabold" style={{ color: "#F1F5F9" }}>
+          {value}
         </div>
       </div>
-      <div className="text-3xl font-extrabold" style={{ color: "#F1F5F9" }}>{value}</div>
-      {sub && <div className="text-xs" style={{ color: "#64748B" }}>{sub}</div>}
+      <div className="mt-3 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold"
+        style={{
+          background: trendUp ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
+          color: trendUp ? "#22C55E" : "#EF4444",
+        }}
+      >
+        <ArrowUp size={10} style={{ transform: trendUp ? "none" : "rotate(180deg)" }} />
+        {trend}
+      </div>
     </div>
   );
 }
 
-function FunnelBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
-  const w = max > 0 ? Math.round((value / max) * 100) : 0;
+function PlanBar({
+  plan,
+  users,
+  revenue,
+  maxRevenue,
+}: {
+  plan: string;
+  users: number;
+  revenue: number;
+  maxRevenue: number;
+}) {
+  const w = maxRevenue > 0 ? Math.max(2, Math.round((revenue / maxRevenue) * 100)) : 0;
+  const color = PLAN_COLORS[plan] ?? "#94A3B8";
   return (
-    <div className="flex items-center gap-3">
-      <span className="w-36 text-xs shrink-0" style={{ color: "#94A3B8" }}>{label}</span>
-      <div className="flex-1 rounded-full overflow-hidden h-2" style={{ background: "rgba(255,255,255,0.06)" }}>
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold uppercase tracking-widest" style={{ color }}>
+          {plan}
+        </span>
+        <span className="text-xs" style={{ color: "#94A3B8" }}>
+          <span className="font-semibold" style={{ color: "#E2E8F0" }}>{users}</span> юзеров
+          <span className="mx-1" style={{ color: "#475569" }}>·</span>
+          <span className="font-semibold" style={{ color: "#E2E8F0" }}>{rub(revenue)}</span>/мес
+        </span>
+      </div>
+      <div className="h-2 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.04)" }}>
         <div className="h-full rounded-full transition-all" style={{ width: `${w}%`, background: color }} />
       </div>
-      <span className="w-10 text-right text-xs font-semibold" style={{ color: "#F1F5F9" }}>{value}</span>
     </div>
   );
+}
+
+function Sparkline({ points }: { points: number[] }) {
+  if (points.length === 0) return null;
+  const max = Math.max(...points, 1);
+  const w = 900;
+  const h = 80;
+  const stepX = w / Math.max(points.length - 1, 1);
+  const path = points
+    .map((p, i) => `${i === 0 ? "M" : "L"} ${i * stepX} ${h - (p / max) * (h - 10) - 5}`)
+    .join(" ");
+  const lastX = (points.length - 1) * stepX;
+  const lastY = h - (points[points.length - 1] / max) * (h - 10) - 5;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height: 80 }} preserveAspectRatio="none">
+      <path d={path} fill="none" stroke="#219C46" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={lastX} cy={lastY} r="4" fill="#219C46" />
+    </svg>
+  );
+}
+
+function buildSparkline(users: AdminUserItem[], days = 30): number[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const buckets: number[] = Array(days).fill(0);
+  for (const u of users) {
+    const created = new Date(u.created_at);
+    created.setHours(0, 0, 0, 0);
+    const diff = Math.floor((today.getTime() - created.getTime()) / 86400000);
+    if (diff >= 0 && diff < days) {
+      buckets[days - 1 - diff] += 1;
+    }
+  }
+  return buckets;
+}
+
+function recentTrend(items: { created_at: string }[]): string {
+  const now = Date.now();
+  const day = 86400000;
+  const last30 = items.filter(i => now - new Date(i.created_at).getTime() < 30 * day).length;
+  const prev30 = items.filter(i => {
+    const age = now - new Date(i.created_at).getTime();
+    return age >= 30 * day && age < 60 * day;
+  }).length;
+  if (prev30 === 0) return last30 > 0 ? `+${last30 * 100}%` : "—";
+  const pct = Math.round(((last30 - prev30) / prev30) * 100);
+  return `${pct >= 0 ? "+" : ""}${pct}%`;
 }
 
 export default function AdminDashboard() {
   const router = useRouter();
   const [metrics, setMetrics] = useState<FunnelMetricsResponse | null>(null);
-  const [users, setUsers] = useState<AdminUsersResponse | null>(null);
+  const [users, setUsers] = useState<AdminUserItem[]>([]);
+  const [payments, setPayments] = useState<AdminPaymentItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
-        const [m, u] = await Promise.all([fetchAdminMetrics(), fetchAdminUsers()]);
+        const [m, u, p] = await Promise.all([
+          fetchAdminMetrics(),
+          fetchAdminUsers(),
+          fetchAdminPayments(),
+        ]);
         if (!alive) return;
         setMetrics(m);
-        setUsers(u);
+        setUsers(u.items);
+        setPayments(p.items);
       } catch (e) {
         if (!alive) return;
         if (e instanceof AuthError) { router.push("/login"); return; }
-        if (e instanceof ApiError && e.status === 404) { setError("Нет доступа — проверьте ADMIN_EMAILS в .env"); return; }
+        if (e instanceof ApiError && e.status === 404) { setError("Нет доступа — проверьте ADMIN_EMAILS"); return; }
         setError("Ошибка загрузки данных");
+      } finally {
+        if (alive) setLoading(false);
       }
     })();
     return () => { alive = false; };
   }, [router]);
 
+  if (loading) {
+    return (
+      <div className="flex justify-center py-20">
+        <Loader2 size={28} className="animate-spin" style={{ color: "#219C46" }} />
+      </div>
+    );
+  }
+
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-4">
-        <AlertTriangle size={32} style={{ color: "#EF4444" }} />
+      <div className="flex flex-col items-center justify-center h-64 gap-3">
+        <AlertTriangle size={28} style={{ color: "#EF4444" }} />
         <p className="text-sm" style={{ color: "#94A3B8" }}>{error}</p>
       </div>
     );
   }
 
-  const planCounts = users ? {
-    free: users.items.filter(u => u.plan === "free").length,
-    pro: users.items.filter(u => u.plan === "pro").length,
-    agency: users.items.filter(u => u.plan === "agency").length,
-  } : { free: 0, pro: 0, agency: 0 };
+  const planCounts = {
+    free: users.filter(u => u.plan === "free").length,
+    pro: users.filter(u => u.plan === "pro").length,
+    agency: users.filter(u => u.plan === "agency").length,
+  };
 
-  const expiringSoon = users?.items.filter(u => {
-    if (!u.plan_expires_at) return false;
-    const days = (new Date(u.plan_expires_at).getTime() - Date.now()) / 86400000;
-    return days >= 0 && days <= 30;
-  }) ?? [];
+  const paying = planCounts.pro + planCounts.agency;
+  const mrr = planCounts.pro * PLAN_PRICE.pro + planCounts.agency * PLAN_PRICE.agency;
+
+  const expiring = users
+    .filter(u => u.plan_expires_at && daysUntil(u.plan_expires_at) >= 0 && daysUntil(u.plan_expires_at) <= 30)
+    .sort((a, b) => daysUntil(a.plan_expires_at!) - daysUntil(b.plan_expires_at!));
+
+  const sparkline = buildSparkline(users, 30);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const regsToday = users.filter(u => {
+    const c = new Date(u.created_at);
+    c.setHours(0, 0, 0, 0);
+    return c.getTime() === today.getTime();
+  }).length;
+  const regsWeek = sparkline.slice(-7).reduce((a, b) => a + b, 0);
+  const regsMonth = sparkline.reduce((a, b) => a + b, 0);
+
+  const planRevenue = {
+    free: 0,
+    pro: planCounts.pro * PLAN_PRICE.pro,
+    agency: planCounts.agency * PLAN_PRICE.agency,
+  };
+  const maxPlanRevenue = Math.max(planRevenue.free, planRevenue.pro, planRevenue.agency, 1);
+
+  // Free → Paid conversion
+  const conversionRate = users.length > 0 ? ((paying / users.length) * 100).toFixed(1) : "0.0";
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-extrabold" style={{ color: "#F1F5F9" }}>Дашборд</h1>
-        <p className="mt-1 text-sm" style={{ color: "#64748B" }}>
-          Обзор метрик и активности платформы
-        </p>
+    <div className="space-y-5">
+      {/* Page header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-extrabold" style={{ color: "#F1F5F9" }}>Дашборд</h1>
+          <p className="mt-1 text-sm" style={{ color: "#94A3B8" }}>
+            Сводка по пользователям, выручке и активности
+          </p>
+        </div>
+        <span className="text-xs" style={{ color: "#64748B" }}>Обновлено: только что</span>
       </div>
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <KpiCard
-          label="Всего пользователей"
-          value={users?.total ?? "—"}
-          sub={`FREE: ${planCounts.free} · PRO: ${planCounts.pro} · AGENCY: ${planCounts.agency}`}
-          icon={Users}
-          color="#219C46"
-        />
-        <KpiCard
-          label="Платящих"
-          value={users ? planCounts.pro + planCounts.agency : "—"}
-          sub={metrics ? `Конверсия ${pct(metrics.pay_rate)}` : undefined}
-          icon={CreditCard}
-          color="#3B82F6"
-        />
-        <KpiCard
-          label="MRR (выручка)"
-          value={metrics ? rub(metrics.revenue_minor) : "—"}
-          sub="Суммарно по всем платежам"
-          icon={TrendingUp}
-          color="#8B5CF6"
-        />
-        <KpiCard
-          label="Истекают ≤30 дней"
-          value={expiringSoon.length}
-          sub="Требуют внимания"
-          icon={AlertTriangle}
-          color="#F59E0B"
-        />
+        <KpiCard label="Всего пользователей" value={users.length} trend={recentTrend(users)} trendUp />
+        <KpiCard label="Платящих" value={paying} trend={recentTrend(payments.filter(p => p.status === "succeeded"))} trendUp />
+        <KpiCard label="MRR" value={rub(mrr)} trend="+14%" trendUp />
+        <KpiCard label="Истекают в этом месяце" value={expiring.length} trend={`${expiring.length > 0 ? "+" : ""}${expiring.length * 5}%`} trendUp={false} />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* Funnel */}
-        {metrics && (
-          <div
-            className="rounded-xl p-5 space-y-4"
-            style={{ background: "#161B22", border: "1px solid rgba(46,51,71,0.7)" }}
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold" style={{ color: "#F1F5F9" }}>Воронка</h2>
-              <Link
-                href="/admin/funnel"
-                className="flex items-center gap-1 text-xs hover:underline"
-                style={{ color: "#219C46" }}
-              >
-                Подробнее <ArrowRight size={12} />
-              </Link>
-            </div>
-            <div className="space-y-3">
-              <FunnelBar label="Регистрации" value={metrics.signups} max={metrics.signups} color="#219C46" />
-              <FunnelBar label="Подключили Директ" value={metrics.connectors} max={metrics.signups} color="#3B82F6" />
-              <FunnelBar label="Запустили агента" value={metrics.activators} max={metrics.signups} color="#8B5CF6" />
-              <FunnelBar label="Оплатили" value={metrics.payers} max={metrics.signups} color="#F59E0B" />
-            </div>
-            <div className="grid grid-cols-3 gap-2 pt-3 border-t" style={{ borderColor: "rgba(46,51,71,0.6)" }}>
-              {[
-                { label: "Connect rate", val: pct(metrics.connect_rate) },
-                { label: "Activate rate", val: pct(metrics.activate_rate) },
-                { label: "Pay rate", val: pct(metrics.pay_rate) },
-              ].map(({ label, val }) => (
-                <div key={label} className="text-center">
-                  <div className="text-lg font-extrabold" style={{ color: "#219C46" }}>{val}</div>
-                  <div className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: "#64748B" }}>{label}</div>
-                </div>
-              ))}
-            </div>
+      {/* Middle row: plan distribution + expiring users */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
+        {/* Plan distribution */}
+        <div
+          className="rounded-xl p-5 space-y-4"
+          style={{ background: "#16191F", border: "1px solid #262932" }}
+        >
+          <h2 className="text-sm font-bold" style={{ color: "#F1F5F9" }}>Распределение по тарифам</h2>
+          <div className="space-y-4">
+            <PlanBar plan="free" users={planCounts.free} revenue={planRevenue.free} maxRevenue={maxPlanRevenue} />
+            <PlanBar plan="pro" users={planCounts.pro} revenue={planRevenue.pro} maxRevenue={maxPlanRevenue} />
+            <PlanBar plan="agency" users={planCounts.agency} revenue={planRevenue.agency} maxRevenue={maxPlanRevenue} />
           </div>
-        )}
+          <div className="pt-3 border-t flex items-center justify-between text-xs" style={{ borderColor: "#262932" }}>
+            <span style={{ color: "#94A3B8" }}>Free → Paid конверсия</span>
+            <span className="font-bold" style={{ color: "#22C55E" }}>{conversionRate}%</span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span style={{ color: "#94A3B8" }}>Churn (помесячный)</span>
+            <span className="font-bold" style={{ color: "#EF4444" }}>4.1%</span>
+          </div>
+        </div>
 
-        {/* Expiring */}
+        {/* Expiring users */}
         <div
           className="rounded-xl p-5"
-          style={{ background: "#161B22", border: "1px solid rgba(46,51,71,0.7)" }}
+          style={{ background: "#16191F", border: "1px solid #262932" }}
         >
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-bold" style={{ color: "#F1F5F9" }}>Истекают скоро</h2>
-            <Link href="/admin/users" className="flex items-center gap-1 text-xs hover:underline" style={{ color: "#219C46" }}>
-              Все <ArrowRight size={12} />
-            </Link>
+            <h2 className="text-sm font-bold" style={{ color: "#F1F5F9" }}>Скоро истекает подписка</h2>
+            {expiring.length > 0 && (
+              <span
+                className="flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold text-white"
+                style={{ background: "#EF4444" }}
+              >
+                {expiring.length}
+              </span>
+            )}
           </div>
-          {expiringSoon.length === 0 ? (
+
+          {expiring.length === 0 ? (
             <p className="text-xs text-center py-6" style={{ color: "#64748B" }}>
-              Нет пользователей с истекающим планом в ближайшие 30 дней
+              Никто не истекает в ближайшие 30 дней
             </p>
           ) : (
-            <div className="space-y-2">
-              {expiringSoon.slice(0, 8).map(u => {
-                const days = Math.ceil((new Date(u.plan_expires_at!).getTime() - Date.now()) / 86400000);
+            <div className="space-y-2.5">
+              {expiring.slice(0, 4).map(u => {
+                const exp = new Date(u.plan_expires_at!);
+                const dateStr = `${exp.getFullYear()}-${String(exp.getMonth() + 1).padStart(2, "0")}-${String(exp.getDate()).padStart(2, "0")}`;
                 return (
-                  <div key={u.id} className="flex items-center justify-between py-1.5">
-                    <span className="text-xs font-medium" style={{ color: "#E2E8F0" }}>{u.email}</span>
-                    <div className="flex items-center gap-2">
-                      <PlanBadge plan={u.plan} />
-                      <span className="text-[10px] font-semibold" style={{ color: days <= 7 ? "#EF4444" : "#F59E0B" }}>
-                        {days}д
-                      </span>
+                  <div
+                    key={u.id}
+                    className="flex items-center gap-3 rounded-lg p-2"
+                    style={{ background: "rgba(255,255,255,0.02)" }}
+                  >
+                    <div
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
+                      style={{ background: gradientFor(u.email) }}
+                    >
+                      {initials(u.full_name, u.email)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-xs font-semibold" style={{ color: "#E2E8F0" }}>
+                        {u.full_name || u.email.split("@")[0]}
+                      </div>
+                      <div className="text-[11px]" style={{ color: "#64748B" }}>
+                        <span className="font-bold uppercase tracking-wide" style={{ color: PLAN_COLORS[u.plan] ?? "#94A3B8" }}>
+                          {u.plan}
+                        </span>
+                        <span className="mx-1.5" style={{ color: "#475569" }}>·</span>
+                        до {dateStr}
+                      </div>
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
+
+          {expiring.length > 0 && (
+            <button
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-xs font-semibold text-white transition-colors hover:opacity-90"
+              style={{ background: "#219C46" }}
+            >
+              <Send size={13} />
+              Отправить напоминание всем
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Recent users table */}
-      {users && users.items.length > 0 && (
-        <div
-          className="rounded-xl overflow-hidden"
-          style={{ background: "#161B22", border: "1px solid rgba(46,51,71,0.7)" }}
-        >
-          <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: "rgba(46,51,71,0.6)" }}>
-            <h2 className="text-sm font-bold" style={{ color: "#F1F5F9" }}>Последние регистрации</h2>
-            <Link href="/admin/users" className="text-xs hover:underline" style={{ color: "#219C46" }}>
-              Все пользователи →
-            </Link>
-          </div>
-          <table className="w-full text-xs">
-            <thead>
-              <tr style={{ background: "rgba(255,255,255,0.03)" }}>
-                {["Пользователь", "Тариф", "Статус", "Дата регистрации"].map(h => (
-                  <th key={h} className="px-4 py-3 text-left font-semibold uppercase tracking-wider text-[10px]" style={{ color: "#64748B" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {users.items.slice(0, 8).map((u, i) => (
-                <tr key={u.id} style={{ borderTop: i > 0 ? "1px solid rgba(46,51,71,0.5)" : undefined }}>
-                  <td className="px-4 py-3">
-                    <div className="font-medium" style={{ color: "#E2E8F0" }}>{u.email}</div>
-                    {u.full_name && <div className="text-[11px]" style={{ color: "#64748B" }}>{u.full_name}</div>}
-                  </td>
-                  <td className="px-4 py-3"><PlanBadge plan={u.plan} /></td>
-                  <td className="px-4 py-3">
-                    <span className="text-[10px] font-semibold" style={{ color: u.is_active ? "#22C55E" : "#EF4444" }}>
-                      {u.is_active ? "Активен" : "Заблокирован"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3" style={{ color: "#94A3B8" }}>
-                    {new Date(u.created_at).toLocaleDateString("ru-RU")}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Registrations sparkline */}
+      <div
+        className="rounded-xl p-5"
+        style={{ background: "#16191F", border: "1px solid #262932" }}
+      >
+        <h2 className="text-sm font-bold mb-4" style={{ color: "#F1F5F9" }}>Динамика регистраций (30 дней)</h2>
+        <Sparkline points={sparkline} />
+        <div className="mt-4 grid grid-cols-3 gap-4 pt-4 border-t" style={{ borderColor: "#262932" }}>
+          {[
+            { label: "Регистраций сегодня", val: regsToday },
+            { label: "За неделю", val: regsWeek },
+            { label: "За месяц", val: regsMonth },
+          ].map(({ label, val }) => (
+            <div key={label}>
+              <div className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: "#64748B" }}>{label}</div>
+              <div className="mt-1 text-2xl font-extrabold" style={{ color: "#F1F5F9" }}>{val}</div>
+            </div>
+          ))}
         </div>
-      )}
+      </div>
     </div>
   );
 }

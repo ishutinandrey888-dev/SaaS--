@@ -1,40 +1,68 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
-  BarChart3,
-  CreditCard,
-  LayoutDashboard,
-  TrendingUp,
-  Users,
   ArrowLeft,
+  CreditCard,
+  Globe,
+  LayoutDashboard,
+  Link2,
+  LogOut,
+  Megaphone,
+  TrendingUp,
+  UserPlus,
+  Users,
 } from "lucide-react";
+import { fetchMe, logout } from "@/lib/api";
+import type { Me } from "@/lib/types";
 
 const NAV = [
   { href: "/admin", label: "Дашборд", icon: LayoutDashboard, exact: true },
   { href: "/admin/users", label: "Пользователи", icon: Users, exact: false },
+  { href: "/admin/employees", label: "Сотрудники", icon: UserPlus, exact: false },
   { href: "/admin/funnel", label: "Воронка", icon: TrendingUp, exact: false },
+  { href: "/admin/sources", label: "Источники", icon: Globe, exact: false },
+  { href: "/admin/utm", label: "UTM-метки", icon: Link2, exact: false },
+  { href: "/admin/broadcasts", label: "Рассылки", icon: Megaphone, exact: false },
   { href: "/admin/billing", label: "Тарифы и оплаты", icon: CreditCard, exact: false },
 ];
 
+function avatarFromEmail(email: string): string {
+  const parts = email.split("@")[0].split(/[._-]/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return email.slice(0, 2).toUpperCase();
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const path = usePathname();
+  const router = useRouter();
+  const [me, setMe] = useState<Me | null>(null);
+
+  useEffect(() => {
+    fetchMe().then(setMe).catch(() => {});
+  }, []);
+
+  const handleLogout = async () => {
+    try { await logout(); } catch {}
+    router.push("/login");
+  };
 
   return (
-    <div className="flex min-h-screen" style={{ background: "#0A0D12", color: "#E2E8F0" }}>
+    <div className="flex min-h-screen" style={{ background: "#0F1115", color: "#E2E8F0" }}>
       {/* Sidebar */}
       <aside
         className="flex w-[220px] shrink-0 flex-col border-r"
-        style={{ background: "#111318", borderColor: "#2E3347" }}
+        style={{ background: "#16191F", borderColor: "#262932" }}
       >
-        {/* Logo */}
-        <div className="flex h-14 items-center gap-2 px-4 border-b" style={{ borderColor: "#2E3347" }}>
-          <span className="text-sm font-black tracking-widest uppercase" style={{ color: "#219C46" }}>
+        {/* Logo header */}
+        <div className="flex flex-col gap-0.5 px-5 py-4 border-b" style={{ borderColor: "#262932" }}>
+          <span className="text-base font-black tracking-widest uppercase" style={{ color: "#219C46", letterSpacing: "0.08em" }}>
             ДОЖИМ-АЙ
           </span>
-          <span className="text-xs font-medium" style={{ color: "#64748B" }}>
-            Admin
+          <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "#64748B", letterSpacing: "0.15em" }}>
+            Admin Panel
           </span>
         </div>
 
@@ -46,9 +74,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <Link
                 key={href}
                 href={href}
-                className="flex items-center gap-3 mx-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors"
+                className="flex items-center gap-3 mx-2 px-3 py-2 rounded-lg text-xs transition-colors"
                 style={{
-                  background: active ? "rgba(33,156,70,0.12)" : "transparent",
+                  background: active ? "rgba(33,156,70,0.14)" : "transparent",
                   color: active ? "#219C46" : "#94A3B8",
                   fontWeight: active ? 700 : 500,
                 }}
@@ -60,15 +88,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           })}
         </nav>
 
-        {/* Back to app */}
-        <div className="border-t p-3" style={{ borderColor: "#2E3347" }}>
+        {/* Footer — back to cabinet */}
+        <div className="p-3 border-t" style={{ borderColor: "#262932" }}>
           <Link
             href="/dashboard"
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors hover:text-white"
-            style={{ color: "#64748B" }}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors hover:bg-white/[0.04]"
+            style={{ color: "#94A3B8" }}
           >
             <ArrowLeft size={13} />
-            В кабинет
+            Вернуться в кабинет
           </Link>
         </div>
       </aside>
@@ -78,11 +106,36 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Topbar */}
         <header
           className="flex h-14 shrink-0 items-center justify-between border-b px-6"
-          style={{ borderColor: "#2E3347", background: "#111318" }}
+          style={{ borderColor: "#262932", background: "#16191F" }}
         >
-          <div className="flex items-center gap-2 text-xs" style={{ color: "#64748B" }}>
-            <BarChart3 size={14} />
-            <span>Админ-панель · ДОЖИМ-АЙ</span>
+          <div className="flex items-center gap-1.5 text-xs" style={{ color: "#94A3B8" }}>
+            <span>Админ-панель</span>
+            <span style={{ color: "#475569" }}>·</span>
+            <span>SaaS</span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {me && (
+              <>
+                <span className="text-xs font-medium" style={{ color: "#E2E8F0" }}>
+                  {me.email}
+                </span>
+                <div
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-[11px] font-bold"
+                  style={{ background: "#219C46", color: "#fff" }}
+                >
+                  {avatarFromEmail(me.email)}
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-white/[0.05]"
+                  style={{ color: "#94A3B8", border: "1px solid #262932" }}
+                  title="Выйти"
+                >
+                  <LogOut size={14} />
+                </button>
+              </>
+            )}
           </div>
         </header>
 
