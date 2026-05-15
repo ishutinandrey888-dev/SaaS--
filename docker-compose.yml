@@ -85,7 +85,7 @@ services:
       YANDEX_DIRECT_OAUTH_REDIRECT_URL: ${YANDEX_DIRECT_OAUTH_REDIRECT_URL:-http://localhost:8000/yandex/oauth/callback}
       YANDEX_DIRECT_API_BASE: ${YANDEX_DIRECT_API_BASE:-https://api.direct.yandex.com/json/v5}
       # Admin /admin/metrics access by registered email.
-      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-admin@dozim.ai}
       # FERNET_KEY is required for encrypting OAuth tokens.  Generate one
       # locally with:
       #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
