@@ -91,15 +91,6 @@ async def _apply_finding(finding_id: uuid.UUID) -> bool:
     return ok
 
 
-# Periodic schedule: scan for active agents whose next_run_at has come.
-celery_app.conf.beat_schedule = {
-    "agent-runner-tick": {
-        "task": "agent.tick",
-        "schedule": 5 * 60.0,
-    },
-}
-
-
 @celery_app.task(name="agent.tick")
 def agent_tick() -> int:
     """Find active agents whose next_run_at has passed and dispatch runs."""

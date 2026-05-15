@@ -39,4 +39,10 @@ celery_app.conf.update(
     task_track_started=True,
     worker_prefetch_multiplier=1,
     broker_connection_retry_on_startup=True,
+    beat_schedule={
+        "agent-runner-tick": {
+            "task": "agent.tick",
+            "schedule": 5 * 60.0,
+        },
+    },
 )
