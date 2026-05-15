@@ -62,30 +62,39 @@ async def get_users(
     offset: int = Query(default=0, ge=0),
     plan: str | None = Query(default=None),
 ) -> AdminUsersResponse:
-    async with AsyncSessionAdmin() as session:
-        q = select(User)
-        if plan:
-            q = q.where(User.plan == plan)
-        total_result = await session.execute(select(func.count()).select_from(q.subquery()))
-        total = total_result.scalar_one()
-        rows = (
-            await session.execute(q.order_by(User.created_at.desc()).offset(offset).limit(limit))
-        ).scalars().all()
-    return AdminUsersResponse(
-        total=total,
-        items=[
-            AdminUserItem(
-                id=u.id,
-                email=u.email,
-                full_name=u.full_name,
-                plan=u.plan,
-                is_active=u.is_active,
-                plan_expires_at=u.plan_expires_at,
-                created_at=u.created_at,
-            )
-            for u in rows
-        ],
-    )
+    try:
+        async with AsyncSessionAdmin() as session:
+            session.info["kind"] = "admin"
+            count_q = select(func.count(User.id))
+            if plan:
+                count_q = count_q.where(User.plan == plan)
+            total = (await session.execute(count_q)).scalar_one()
+            list_q = select(User)
+            if plan:
+                list_q = list_q.where(User.plan == plan)
+            rows = (
+                await session.execute(
+                    list_q.order_by(User.created_at.desc()).offset(offset).limit(limit)
+                )
+            ).scalars().all()
+        return AdminUsersResponse(
+            total=total,
+            items=[
+                AdminUserItem(
+                    id=u.id,
+                    email=u.email,
+                    full_name=u.full_name,
+                    plan=u.plan,
+                    is_active=u.is_active,
+                    plan_expires_at=u.plan_expires_at,
+                    created_at=u.created_at,
+                )
+                for u in rows
+            ],
+        )
+    except Exception:
+        logger.exception("admin_users_failed")
+        raise
 
 
 @router.get("/payments", response_model=AdminPaymentsResponse, status_code=status.HTTP_200_OK)
@@ -96,31 +105,38 @@ async def get_payments(
     limit: int = Query(default=100, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> AdminPaymentsResponse:
-    async with AsyncSessionAdmin() as session:
-        q = select(Payment, User.email).join(User, Payment.user_id == User.id)
-        total_result = await session.execute(
-            select(func.count()).select_from(Payment)
+    try:
+        async with AsyncSessionAdmin() as session:
+            session.info["kind"] = "admin"
+            total = (
+                await session.execute(select(func.count(Payment.id)))
+            ).scalar_one()
+            rows = (
+                await session.execute(
+                    select(Payment, User.email)
+                    .join(User, Payment.user_id == User.id)
+                    .order_by(Payment.created_at.desc())
+                    .offset(offset)
+                    .limit(limit)
+                )
+            ).all()
+        return AdminPaymentsResponse(
+            total=total,
+            items=[
+                AdminPaymentItem(
+                    id=p.id,
+                    user_email=email,
+                    plan=p.plan,
+                    amount=p.amount,
+                    currency=p.currency,
+                    status=p.status,
+                    provider=p.provider,
+                    created_at=p.created_at,
+                    paid_at=p.paid_at,
+                )
+                for p, email in rows
+            ],
         )
-        total = total_result.scalar_one()
-        rows = (
-            await session.execute(
-                q.order_by(Payment.created_at.desc()).offset(offset).limit(limit)
-            )
-        ).all()
-    return AdminPaymentsResponse(
-        total=total,
-        items=[
-            AdminPaymentItem(
-                id=p.id,
-                user_email=email,
-                plan=p.plan,
-                amount=p.amount,
-                currency=p.currency,
-                status=p.status,
-                provider=p.provider,
-                created_at=p.created_at,
-                paid_at=p.paid_at,
-            )
-            for p, email in rows
-        ],
-    )
+    except Exception:
+        logger.exception("admin_payments_failed")
+        raise
