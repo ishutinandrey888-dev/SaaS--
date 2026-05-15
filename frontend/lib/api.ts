@@ -20,6 +20,8 @@ import type {
   Project,
   Run,
   RunListResponse,
+  AdminUsersResponse,
+  AdminPaymentsResponse,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -219,6 +221,15 @@ export async function rejectFinding(findingId: string): Promise<Finding> {
 // ---------------------------------------------------------------------
 export async function fetchAdminMetrics(): Promise<FunnelMetricsResponse> {
   return get<FunnelMetricsResponse>("/admin/metrics");
+}
+
+export async function fetchAdminUsers(plan?: string): Promise<AdminUsersResponse> {
+  const q = plan ? `?plan=${plan}` : "";
+  return get<AdminUsersResponse>(`/admin/users${q}`);
+}
+
+export async function fetchAdminPayments(): Promise<AdminPaymentsResponse> {
+  return get<AdminPaymentsResponse>("/admin/payments");
 }
 
 // Compatibility shim — wizard wants this name.

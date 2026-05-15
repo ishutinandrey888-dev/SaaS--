@@ -211,3 +211,35 @@ export interface FunnelMetricsResponse {
   activate_rate: number;
   pay_rate: number;
 }
+
+export interface AdminUserItem {
+  id: string;
+  email: string;
+  full_name: string | null;
+  plan: string;
+  is_active: boolean;
+  plan_expires_at: string | null;
+  created_at: string;
+}
+
+export interface AdminUsersResponse {
+  total: number;
+  items: AdminUserItem[];
+}
+
+export interface AdminPaymentItem {
+  id: string;
+  user_email: string;
+  plan: string;
+  amount: number;
+  currency: string;
+  status: string;
+  provider: string;
+  created_at: string;
+  paid_at: string | null;
+}
+
+export interface AdminPaymentsResponse {
+  total: number;
+  items: AdminPaymentItem[];
+}
