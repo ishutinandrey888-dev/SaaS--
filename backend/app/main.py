@@ -18,9 +18,13 @@ from app.routers import admin as admin_router
 from app.routers import agents as agents_router
 from app.routers import auth as auth_router
 from app.routers import billing as billing_router
+from app.routers import competitors as competitors_router
 from app.routers import dashboard as dashboard_router
+from app.routers import feedback as feedback_router
+from app.routers import image_briefs as image_briefs_router
 from app.routers import health as health_router
 from app.routers import projects as projects_router
+from app.routers import referrals as referrals_router
 from app.routers import yandex as yandex_router
 
 settings = get_settings()
@@ -88,7 +92,11 @@ def create_app() -> FastAPI:
     app.include_router(yandex_router.router)
     app.include_router(agents_router.router)
     app.include_router(billing_router.router)
+    app.include_router(referrals_router.router)
+    app.include_router(competitors_router.router)
+    app.include_router(image_briefs_router.router)
     app.include_router(dashboard_router.router)
+    app.include_router(feedback_router.router)
     app.include_router(admin_router.router)
 
     @app.middleware("http")

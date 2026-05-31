@@ -137,7 +137,7 @@ services:
       JWT_SECRET: dev-secret-do-not-use-in-production-min-32-chars
       REDIS_URL: redis://redis:6379/0
       FERNET_KEY: ${FERNET_KEY:-zZmU5ZjQyZGFiMzQwODhlNGY3OTUyMTJmZGRiOTM=}
-    command: ["celery", "-A", "app.tasks.celery_app", "beat", "--loglevel=info"]
+    command: ["celery", "-A", "app.tasks.celery_app", "beat", "--loglevel=info", "-s", "/tmp/celerybeat-schedule"]
 
   frontend:
     build:

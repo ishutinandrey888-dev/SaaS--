@@ -51,6 +51,9 @@ class PlanDef:
     id: PlanId
     label: str
     price_rub: int  # 0 for free; display-only
+    token_limit: int
+    gross_margin: str
+    estimated_cogs_rub: int
     uploads_per_month: int | None  # None = unlimited
     max_ads_per_upload: int
     ai_ads_per_period: int | None  # None = unlimited
@@ -67,6 +70,9 @@ PLANS: dict[PlanId, PlanDef] = {
         id="free",
         label="Free (trial 7 дней)",
         price_rub=0,
+        token_limit=500,
+        gross_margin="activation",
+        estimated_cogs_rub=90,
         uploads_per_month=3,
         max_ads_per_upload=50,
         ai_ads_per_period=3,
@@ -77,7 +83,10 @@ PLANS: dict[PlanId, PlanDef] = {
     "pro": PlanDef(
         id="pro",
         label="Pro",
-        price_rub=3990,
+        price_rub=5990,
+        token_limit=5000,
+        gross_margin="84-86%",
+        estimated_cogs_rub=850,
         uploads_per_month=20,
         max_ads_per_upload=500,
         ai_ads_per_period=50,
@@ -88,7 +97,10 @@ PLANS: dict[PlanId, PlanDef] = {
     "agency": PlanDef(
         id="agency",
         label="Agency",
-        price_rub=13900,
+        price_rub=19900,
+        token_limit=15000,
+        gross_margin="82-85%",
+        estimated_cogs_rub=3200,
         uploads_per_month=None,
         max_ads_per_upload=2000,
         ai_ads_per_period=None,

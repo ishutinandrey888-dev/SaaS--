@@ -85,6 +85,13 @@ class Settings(BaseSettings):
     # matches one of these gets access to /admin/* endpoints.
     admin_emails: str = ""
 
+    # Operations notifications. Keep Telegram bot secrets on the VPS only.
+    telegram_bot_token: str = ""
+    telegram_ops_chat_id: str = ""
+    ai_monthly_budget_minor: int = 2000000
+    ai_budget_alert_threshold_pct: int = 80
+    code_audit_schedule_days: int = 3
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
@@ -92,6 +99,14 @@ class Settings(BaseSettings):
     @property
     def admin_email_set(self) -> set[str]:
         return {e.strip().lower() for e in self.admin_emails.split(",") if e.strip()}
+
+    @property
+    def owner_email(self) -> str | None:
+        for email in self.admin_emails.split(","):
+            email = email.strip().lower()
+            if email:
+                return email
+        return None
 
     @property
     def max_upload_size_bytes(self) -> int:

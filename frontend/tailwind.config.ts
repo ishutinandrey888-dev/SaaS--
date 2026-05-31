@@ -6,13 +6,15 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        sans: ["Onest", "system-ui", "sans-serif"],
+        display: ["Unbounded", "system-ui", "sans-serif"],
       },
       colors: {
         // Brand green from the mockup. Used for primary CTA + "applied" state.
         brand: {
           50: "#e8f5ec",
           100: "#bfe3c9",
+          400: "#4ade80",
           500: "#34c759",
           600: "#2aa84a",
           700: "#219c46",

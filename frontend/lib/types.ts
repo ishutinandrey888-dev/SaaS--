@@ -60,6 +60,9 @@ export interface PlanInfo {
   id: PlanId;
   label: string;
   price_rub: number;
+  token_limit: number;
+  gross_margin: string;
+  estimated_cogs_rub: number;
   uploads_per_month: number | null;
   max_ads_per_upload: number;
   ai_ads_per_period: number | null;
@@ -84,6 +87,89 @@ export interface PaymentStatusResponse {
   status: "pending" | "succeeded" | "failed" | "canceled";
   created_at: string;
   paid_at: string | null;
+}
+
+export interface TokenBalanceResponse {
+  plan: PlanId;
+  period: string;
+  token_limit: number;
+  tokens_used: number;
+  bonus_tokens: number;
+  tokens_remaining: number;
+  usage_percent: number;
+  warn_at_percent: number;
+  limit_reached: boolean;
+  period_ends_at: string | null;
+}
+
+export interface ReferralProgramResponse {
+  code: string;
+  invite_url: string;
+  invited: number;
+  activated: number;
+  earned_tokens: number;
+  pending_tokens: number;
+}
+
+export interface Referral {
+  id: string;
+  code: string;
+  status: string;
+  reward_tokens: number;
+  created_at: string;
+}
+
+export interface CompetitorAnalyzePayload {
+  query: string;
+  region?: string;
+  source?: string;
+}
+
+export interface CompetitorReport {
+  id: string;
+  query: string;
+  region: string;
+  source: string;
+  results: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface CompetitorWatchPayload {
+  name: string;
+  domain: string;
+  query: string;
+  notes?: string | null;
+  last_snapshot?: Record<string, unknown>;
+}
+
+export interface CompetitorWatch {
+  id: string;
+  name: string;
+  domain: string;
+  query: string;
+  notes: string | null;
+  active: boolean;
+  last_snapshot: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface ImageBriefPayload {
+  project_id?: string | null;
+  site_url?: string | null;
+  brand?: Record<string, unknown>;
+  brief?: Record<string, unknown>;
+}
+
+export interface ImageBrief {
+  id: string;
+  project_id: string | null;
+  site_url: string | null;
+  status: string;
+  brand: Record<string, unknown>;
+  brief: Record<string, unknown>;
+  generated_assets: unknown[];
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Project {
@@ -242,4 +328,126 @@ export interface AdminPaymentItem {
 export interface AdminPaymentsResponse {
   total: number;
   items: AdminPaymentItem[];
+}
+
+export interface AdminCrmLead {
+  id: string;
+  user_id: string | null;
+  name: string | null;
+  email: string | null;
+  plan: string;
+  source: string;
+  status: string;
+  score: number;
+  next_action_at: string | null;
+  meta: Record<string, unknown>;
+}
+
+export interface AdminCrmSegment {
+  id: string;
+  slug: string;
+  title: string;
+  color: string;
+  sort_order: number;
+  trigger_event: string;
+  trigger_delay_minutes: number;
+  auto_enabled: boolean;
+  template: string;
+  channels: Record<string, unknown>;
+  lead_count: number;
+  leads: AdminCrmLead[];
+}
+
+export interface AdminCrmOverviewResponse {
+  segments: AdminCrmSegment[];
+}
+
+export interface AdminCrmTemplateUpdate {
+  template: string;
+  auto_enabled?: boolean;
+  channels?: Record<string, unknown>;
+}
+
+export interface AdminBroadcastResult {
+  segment_slug: string;
+  queued: number;
+  channels: Record<string, unknown>;
+}
+
+export interface FeedbackPayload {
+  kind: string;
+  title: string;
+  body: string;
+  rating?: number | null;
+  source?: string;
+  meta?: Record<string, unknown>;
+}
+
+export interface FeedbackItem {
+  id: string;
+  user_id: string | null;
+  kind: string;
+  rating: number | null;
+  status: string;
+  title: string;
+  body: string;
+  source: string;
+  meta: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface ProductAgentRun {
+  id: string;
+  name: string;
+  kind: string;
+  status: string;
+  schedule: string;
+  started_at: string | null;
+  finished_at: string | null;
+  next_run_at: string | null;
+  input_tokens: number;
+  output_tokens: number;
+  cost_minor: number;
+  summary: string | null;
+  error: string | null;
+}
+
+export interface AiUsageDay {
+  day: string;
+  provider: string;
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+  cost_minor: number;
+  budget_minor: number;
+}
+
+export interface AgentOpsResponse {
+  runs: ProductAgentRun[];
+  usage: AiUsageDay[];
+  month_cost_minor: number;
+  month_tokens: number;
+  budget_minor: number;
+  budget_used_pct: number;
+  telegram_enabled: boolean;
+  code_audit_schedule_days: number;
+}
+
+export interface PayrollEntry {
+  id: string;
+  period: string;
+  employee_name: string;
+  employee_email: string | null;
+  role: string;
+  hours: number;
+  variable_minor: number;
+  kpi_bonus_minor: number;
+  total_minor: number;
+  status: string;
+}
+
+export interface PayrollResponse {
+  period: string;
+  total_minor: number;
+  entries: PayrollEntry[];
 }

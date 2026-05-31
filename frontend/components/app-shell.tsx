@@ -4,36 +4,75 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  Activity,
+  BarChart2,
   Bot,
+  ChevronDown,
+  CircleHelp,
+  Clock,
   Cog,
   Home,
-  LifeBuoy,
-  LineChart,
-  ListChecks,
   LogOut,
   Megaphone,
   Sparkles,
   Wallet,
 } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 import { ApiError, AuthError, fetchMe, logout } from "@/lib/api";
 import type { Me } from "@/lib/types";
 
 interface NavItem {
   href: string;
   label: string;
-  icon: typeof Home;
+  icon: React.ReactNode;
+  badge?: number;
+  badgeRed?: boolean;
 }
 
-const NAV: NavItem[] = [
-  { href: "/dashboard", label: "Главная", icon: Home },
-  { href: "/analyst", label: "AI-аналитик", icon: Bot },
-  { href: "/yandex", label: "Яндекс Директ", icon: Megaphone },
-  { href: "/opportunities", label: "Возможности", icon: Sparkles },
-  { href: "/history", label: "История", icon: ListChecks },
-  { href: "/analytics", label: "Аналитика", icon: LineChart },
-  { href: "/settings", label: "Настройки", icon: Cog },
-  { href: "/help", label: "Центр помощи", icon: LifeBuoy },
+function NavIcon({ bg, color, children }: { bg: string; color: string; children: React.ReactNode }) {
+  return (
+    <span style={{
+      width: 22, height: 22, borderRadius: 6, background: bg,
+      display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+    }}>
+      <span style={{ color, display: "flex" }}>{children}</span>
+    </span>
+  );
+}
+
+const NAV_ITEMS: NavItem[] = [
+  {
+    href: "/dashboard", label: "Главная",
+    icon: <NavIcon bg="#1E4D35" color="#4ADE80"><Home size={13} /></NavIcon>,
+  },
+  {
+    href: "/analyst", label: "AI-аналитик",
+    icon: <NavIcon bg="#3B2F6E" color="#A78BFA"><Bot size={13} /></NavIcon>,
+    badge: 0,
+  },
+  {
+    href: "/yandex", label: "Яндекс Директ",
+    icon: <NavIcon bg="#1C2A4A" color="#60A5FA"><Megaphone size={13} /></NavIcon>,
+  },
+  {
+    href: "/opportunities", label: "Возможности",
+    icon: <NavIcon bg="#3B2A10" color="#FBBF24"><Sparkles size={13} /></NavIcon>,
+  },
+  {
+    href: "/analytics", label: "Аналитика",
+    icon: <NavIcon bg="#1C2E4A" color="#38BDF8"><BarChart2 size={13} /></NavIcon>,
+  },
+  {
+    href: "/history", label: "История",
+    icon: <span style={{ display: "flex", color: "#64748b" }}><Clock size={18} /></span>,
+  },
+  {
+    href: "/settings", label: "Настройки",
+    icon: <span style={{ display: "flex", color: "#64748b" }}><Cog size={18} /></span>,
+  },
+  {
+    href: "/help", label: "Центр помощи",
+    icon: <span style={{ display: "flex", color: "#64748b" }}><CircleHelp size={18} /></span>,
+  },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -41,6 +80,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [me, setMe] = useState<Me | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,103 +90,149 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         if (!cancelled) setMe(u);
       } catch (e) {
         if (cancelled) return;
-        if (e instanceof AuthError) {
-          router.push("/login");
-          return;
-        }
+        if (e instanceof AuthError) { router.push("/login"); return; }
         if (e instanceof ApiError) setError(e.message);
         else setError("Не удалось загрузить профиль.");
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [router]);
 
   const handleLogout = async () => {
-    try {
-      await logout();
-    } catch {
-      // ignore
-    }
+    try { await logout(); } catch { /* ignore */ }
     router.push("/login");
   };
 
-  return (
-    <div className="grid min-h-screen grid-cols-[260px_1fr]">
-      <aside className="sticky top-0 flex h-screen flex-col border-r border-ink-300/40 bg-ink-50 px-4 py-6">
-        <Link href="/dashboard" className="flex items-center gap-2 px-2">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-700 text-white">
-            <Activity className="h-5 w-5" />
-          </span>
-          <span className="text-base font-semibold tracking-tight">
-            ДОЖИМ-АЙ
-          </span>
-        </Link>
+  const displayName = me?.full_name || me?.email?.split("@")[0] || "Пользователь";
+  const initials = displayName.split(/[ .]/).filter(Boolean).slice(0, 2).map((s: string) => s[0] || "").join("").toUpperCase() || "П";
+  const plan = me?.plan || "free";
 
-        <nav className="mt-8 flex-1 space-y-1">
-          {NAV.map(({ href, label, icon: Icon }) => {
-            const active =
-              pathname === href || pathname?.startsWith(`${href}/`);
+  return (
+    <div style={{ display: "flex", minHeight: "100vh", background: "#1A1D2E" }}>
+      {/* Sidebar */}
+      <aside style={{
+        width: 210, flexShrink: 0,
+        background: "#232638",
+        borderRight: "1px solid #2E3347",
+        display: "flex", flexDirection: "column",
+        height: "100vh", position: "sticky", top: 0,
+        overflow: "hidden",
+      }}>
+        {/* Logo */}
+        <div style={{
+          padding: "14px 16px",
+          borderBottom: "1px solid #2E3347",
+          display: "flex", alignItems: "center", minHeight: 56,
+        }}>
+          <BrandLogo href="/dashboard" width={160} />
+        </div>
+
+        {/* Nav */}
+        <nav style={{ flex: 1, padding: 6, overflowY: "auto" }}>
+          {NAV_ITEMS.map(({ href, label, icon, badge, badgeRed }) => {
+            const active = pathname === href || pathname?.startsWith(`${href}/`);
             return (
               <Link
                 key={href}
                 href={href}
-                className={
-                  "group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition " +
-                  (active
-                    ? "bg-ink-200 text-ink-900"
-                    : "text-ink-600 hover:bg-ink-200/60 hover:text-ink-900")
-                }
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "8px 10px", borderRadius: 8, marginBottom: 1,
+                  cursor: "pointer", fontSize: 12,
+                  fontWeight: active ? 700 : 500,
+                  background: active ? "rgba(33,156,70,0.12)" : "transparent",
+                  color: active ? "#4ADE80" : "#94A3B8",
+                  textDecoration: "none",
+                  transition: "background 120ms",
+                }}
               >
-                <Icon
-                  className={
-                    "h-4 w-4 " +
-                    (active ? "text-brand-500" : "text-ink-500")
-                  }
-                />
-                {label}
+                <span style={{ display: "flex", flexShrink: 0, alignItems: "center" }}>{icon}</span>
+                <span style={{ flex: 1 }}>{label}</span>
+                {badge != null && badge > 0 && (
+                  <span style={{
+                    background: badgeRed ? "#EF4444" : "#4ADE80",
+                    color: "#fff", borderRadius: 9999,
+                    padding: "1px 6px", fontSize: 10, fontWeight: 700,
+                  }}>{badge}</span>
+                )}
               </Link>
             );
           })}
         </nav>
 
-        <div className="border-t border-ink-300/40 pt-4">
-          {me ? (
-            <div className="flex items-center justify-between gap-2 rounded-xl bg-ink-200/60 px-3 py-2">
-              <div className="min-w-0">
-                <p className="truncate text-xs font-medium text-ink-900">
-                  {me.full_name || me.email}
-                </p>
-                <p className="truncate text-[11px] uppercase tracking-wide text-ink-600">
-                  {me.plan}
-                </p>
+        {/* User section */}
+        <div style={{ padding: "10px 12px", borderTop: "1px solid #2E3347", position: "relative" }}>
+          {/* Popover menu */}
+          {menuOpen && (
+            <div style={{
+              position: "absolute", bottom: "calc(100% - 6px)", left: 8, right: 8,
+              background: "#232638", border: "1px solid #2E3347", borderRadius: 9,
+              boxShadow: "0 8px 24px rgba(0,0,0,0.4)", overflow: "hidden", zIndex: 10,
+            }}>
+              <div style={{ padding: "10px 12px", borderBottom: "1px solid #2E3347" }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#F1F5F9", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{displayName}</div>
+                <div style={{ fontSize: 10, color: "#475569", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{me?.email || ""}</div>
               </div>
+              <Link href="/settings" onClick={() => setMenuOpen(false)} style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "9px 12px", fontSize: 12, color: "#94A3B8", textDecoration: "none", cursor: "pointer",
+              }}>
+                <Cog size={12} />Настройки
+              </Link>
+              <Link href="/billing" onClick={() => setMenuOpen(false)} style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "9px 12px", fontSize: 12, color: "#94A3B8", textDecoration: "none", cursor: "pointer",
+              }}>
+                <Wallet size={12} />Тариф и оплата
+              </Link>
               <button
-                type="button"
-                onClick={handleLogout}
-                className="rounded-lg p-1.5 text-ink-600 hover:bg-ink-300 hover:text-ink-900"
-                title="Выйти"
+                onClick={() => { setMenuOpen(false); handleLogout(); }}
+                style={{
+                  display: "flex", width: "100%", alignItems: "center", gap: 8,
+                  padding: "9px 12px", fontSize: 12, color: "#F87171", cursor: "pointer",
+                  background: "none", border: "none",
+                  borderTop: "1px solid #2E3347",
+                }}
               >
-                <LogOut className="h-4 w-4" />
+                <LogOut size={12} />Выйти
               </button>
             </div>
-          ) : error ? (
-            <p className="px-3 text-xs text-rose-400">{error}</p>
-          ) : (
-            <p className="px-3 text-xs text-ink-600">Загрузка…</p>
           )}
-          <Link
-            href="/settings"
-            className="mt-3 flex items-center gap-2 rounded-xl px-3 py-2 text-xs text-ink-600 hover:bg-ink-200/60 hover:text-ink-900"
-          >
-            <Wallet className="h-3.5 w-3.5" />
-            Тариф и оплата
-          </Link>
+
+          {/* User row */}
+          {error ? (
+            <p style={{ fontSize: 11, color: "#F87171", padding: "2px 0" }}>{error}</p>
+          ) : (
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                cursor: "pointer", padding: "2px 0", width: "100%",
+                background: "none", border: "none",
+              }}
+            >
+              <div style={{
+                width: 30, height: 30, borderRadius: "50%",
+                background: "linear-gradient(135deg, #219C46, #27b350)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 11, fontWeight: 700, color: "#fff", flexShrink: 0,
+              }}>{initials}</div>
+              <div style={{ minWidth: 0, flex: 1, textAlign: "left" }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#F1F5F9", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {me ? displayName : "Загрузка…"}
+                </div>
+                <div style={{ fontSize: 10, color: "#94A3B8" }}>{plan.toUpperCase()}</div>
+              </div>
+              <ChevronDown size={12} color="#475569" />
+            </button>
+          )}
         </div>
       </aside>
 
-      <main className="min-h-screen overflow-x-hidden">{children}</main>
+      {/* Main content */}
+      <main style={{ flex: 1, minHeight: "100vh", overflow: "hidden auto", background: "#1A1D2E" }}>
+        {children}
+      </main>
     </div>
   );
 }

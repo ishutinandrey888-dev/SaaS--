@@ -6,11 +6,19 @@ import type {
   AgentKpi,
   AgentListResponse,
   AgentPatchPayload,
+  AdminPaymentsResponse,
+  AdminUsersResponse,
+  CompetitorAnalyzePayload,
+  CompetitorReport,
+  CompetitorWatch,
+  CompetitorWatchPayload,
   CreatePaymentResponse,
   DashboardResponse,
   Finding,
   FindingListResponse,
   FunnelMetricsResponse,
+  ImageBrief,
+  ImageBriefPayload,
   Me,
   OAuthStartResponse,
   PaidPlanId,
@@ -18,13 +26,16 @@ import type {
   PlansResponse,
   ProjectListResponse,
   Project,
+  Referral,
+  ReferralProgramResponse,
   Run,
   RunListResponse,
-  AdminUsersResponse,
-  AdminPaymentsResponse,
+  TokenBalanceResponse,
 } from "./types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ??
+  (process.env.NODE_ENV === "development" ? "http://localhost:8000" : "");
 
 export class AuthError extends Error {
   constructor() {
@@ -130,12 +141,61 @@ export async function fetchPlans(): Promise<PlansResponse> {
   return get<PlansResponse>("/billing/plans");
 }
 
+export async function fetchTokenBalance(): Promise<TokenBalanceResponse> {
+  return get<TokenBalanceResponse>("/billing/tokens");
+}
+
 export async function createPayment(plan: PaidPlanId): Promise<CreatePaymentResponse> {
   return send<CreatePaymentResponse>("/billing/create-payment", "POST", { plan });
 }
 
 export async function fetchPaymentStatus(paymentId: string): Promise<PaymentStatusResponse> {
   return get<PaymentStatusResponse>(`/billing/status/${encodeURIComponent(paymentId)}`);
+}
+
+// ---------------------------------------------------------------------
+// Referral program
+// ---------------------------------------------------------------------
+export async function fetchReferralProgram(): Promise<ReferralProgramResponse> {
+  return get<ReferralProgramResponse>("/referrals/program");
+}
+
+export async function listReferrals(): Promise<Referral[]> {
+  return get<Referral[]>("/referrals");
+}
+
+// ---------------------------------------------------------------------
+// Competitor radar
+// ---------------------------------------------------------------------
+export async function analyzeCompetitors(
+  payload: CompetitorAnalyzePayload,
+): Promise<CompetitorReport> {
+  return send<CompetitorReport>("/competitors/analyze", "POST", payload);
+}
+
+export async function listCompetitorWatch(): Promise<CompetitorWatch[]> {
+  return get<CompetitorWatch[]>("/competitors/watch");
+}
+
+export async function createCompetitorWatch(
+  payload: CompetitorWatchPayload,
+): Promise<CompetitorWatch> {
+  return send<CompetitorWatch>("/competitors/watch", "POST", payload);
+}
+
+export async function deleteCompetitorWatch(watchId: string): Promise<void> {
+  await send<void>(`/competitors/watch/${watchId}`, "DELETE");
+}
+
+// ---------------------------------------------------------------------
+// Image generation briefs
+// ---------------------------------------------------------------------
+export async function listImageBriefs(): Promise<ImageBrief[]> {
+  return get<ImageBrief[]>("/image-briefs");
+}
+
+export async function createImageBrief(payload: ImageBriefPayload): Promise<ImageBrief> {
+  return send<ImageBrief>("/image-briefs", "POST", payload);
 }
 
 // ---------------------------------------------------------------------
@@ -224,7 +284,7 @@ export async function fetchAdminMetrics(): Promise<FunnelMetricsResponse> {
 }
 
 export async function fetchAdminUsers(plan?: string): Promise<AdminUsersResponse> {
-  const q = plan ? `?plan=${plan}` : "";
+  const q = plan ? `?plan=${encodeURIComponent(plan)}` : "";
   return get<AdminUsersResponse>(`/admin/users${q}`);
 }
 

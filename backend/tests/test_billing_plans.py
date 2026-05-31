@@ -10,11 +10,17 @@ def test_three_plans_in_catalog():
 
 
 def test_pro_price_matches_brief():
-    assert billing.PLANS["pro"].price_rub == 3990
+    assert billing.PLANS["pro"].price_rub == 5990
 
 
 def test_agency_price_matches_brief():
-    assert billing.PLANS["agency"].price_rub == 13900
+    assert billing.PLANS["agency"].price_rub == 19900
+
+
+def test_token_limits_match_product_model():
+    assert billing.PLANS["free"].token_limit == 500
+    assert billing.PLANS["pro"].token_limit == 5000
+    assert billing.PLANS["agency"].token_limit == 15000
 
 
 def test_free_is_zero():

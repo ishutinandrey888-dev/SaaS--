@@ -40,6 +40,9 @@ class UsageCounter(Base):
     ai_requests_used: Mapped[int] = mapped_column(
         Integer, default=0, server_default="0", nullable=False
     )
+    tokens_used: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

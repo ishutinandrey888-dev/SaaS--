@@ -48,6 +48,9 @@ class PlanInfo(BaseModel):
     id: PlanId
     label: str
     price_rub: int
+    token_limit: int
+    gross_margin: str
+    estimated_cogs_rub: int
     uploads_per_month: int | None
     max_ads_per_upload: int
     ai_ads_per_period: int | None
@@ -56,6 +59,19 @@ class PlanInfo(BaseModel):
 
 class PlansResponse(BaseModel):
     plans: list[PlanInfo]
+
+
+class TokenBalanceResponse(BaseModel):
+    plan: PlanId
+    period: str
+    token_limit: int
+    tokens_used: int
+    bonus_tokens: int
+    tokens_remaining: int
+    usage_percent: int
+    warn_at_percent: int = 80
+    limit_reached: bool
+    period_ends_at: datetime | None = None
 
 
 class CreatePaymentRequest(BaseModel):

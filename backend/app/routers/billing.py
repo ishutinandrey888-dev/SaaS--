@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, HTTPException, Request, status
+from sqlalchemy import text
 
 from app.core.config import get_settings
 from app.core.database import AsyncSessionAdmin, UserDB
@@ -30,12 +31,13 @@ from app.schemas.billing import (
     PaymentStatusResponse,
     PlanInfo,
     PlansResponse,
+    TokenBalanceResponse,
     UpgradeIntentRequest,
     UpgradeIntentResponse,
     WebhookAck,
 )
 from app.services import audit, payments, payments_robokassa
-from app.services.billing import PLANS, get_plan
+from app.services.billing import PLANS, current_period, get_effective_plan, get_plan
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 logger = logging.getLogger("billing")
@@ -51,6 +53,9 @@ async def list_plans() -> PlansResponse:
                 id=plan.id,
                 label=plan.label,
                 price_rub=plan.price_rub,
+                token_limit=plan.token_limit,
+                gross_margin=plan.gross_margin,
+                estimated_cogs_rub=plan.estimated_cogs_rub,
                 uploads_per_month=plan.uploads_per_month,
                 max_ads_per_upload=plan.max_ads_per_upload,
                 ai_ads_per_period=plan.ai_ads_per_period,
@@ -58,6 +63,57 @@ async def list_plans() -> PlansResponse:
             )
             for plan in PLANS.values()
         ]
+    )
+
+
+@router.get("/tokens", response_model=TokenBalanceResponse)
+async def token_balance(user: CurrentUser, db: UserDB) -> TokenBalanceResponse:
+    """Current token balance for the dashboard header and limit popups."""
+    plan_id = get_effective_plan(user)
+    plan = get_plan(plan_id)
+    period = current_period()
+
+    row = (
+        await db.execute(
+            text(
+                """
+                SELECT COALESCE(tokens_used, 0)
+                FROM usage_counters
+                WHERE user_id = :uid AND period = :period
+                """
+            ),
+            {"uid": str(user.id), "period": period},
+        )
+    ).first()
+    tokens_used = int(row[0]) if row else 0
+
+    bonus = (
+        await db.execute(
+            text(
+                """
+                SELECT COALESCE(SUM(amount), 0)
+                FROM token_transactions
+                WHERE user_id = :uid AND period = :period
+                """
+            ),
+            {"uid": str(user.id), "period": period},
+        )
+    ).scalar()
+    bonus_tokens = int(bonus or 0)
+    available = plan.token_limit + max(0, bonus_tokens)
+    remaining = max(0, available - tokens_used)
+    usage_percent = min(100, round(tokens_used / available * 100)) if available else 100
+
+    return TokenBalanceResponse(
+        plan=plan.id,
+        period=period,
+        token_limit=plan.token_limit,
+        tokens_used=tokens_used,
+        bonus_tokens=bonus_tokens,
+        tokens_remaining=remaining,
+        usage_percent=usage_percent,
+        limit_reached=remaining <= 0,
+        period_ends_at=getattr(user, "plan_expires_at", None),
     )
 
 

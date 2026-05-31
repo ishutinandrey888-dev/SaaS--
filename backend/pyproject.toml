@@ -30,6 +30,7 @@ dependencies = [
   "redis>=5.0.8",
   "slowapi>=0.1.9",
   "bleach>=6.1.0",
+  "email-validator",
   "cryptography>=43.0.1",
   "beautifulsoup4>=4.12.3",
   "lxml>=5.3.0",

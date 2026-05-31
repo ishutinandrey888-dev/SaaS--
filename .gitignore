@@ -23,3 +23,5 @@ out/
 .DS_Store
 *.log
 /tmp/uploads/
+*.textClipping
+supabase/.temp/

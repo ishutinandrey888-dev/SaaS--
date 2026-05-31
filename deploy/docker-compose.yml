@@ -84,6 +84,8 @@ services:
     build:
       context: ../frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://your-domain.tld/api}
     env_file:
       - ./.env.frontend
     expose:
