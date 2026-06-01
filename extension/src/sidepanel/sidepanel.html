@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Радар конкурентов</title>
+    <link rel="stylesheet" href="sidepanel.css">
+  </head>
+  <body>
+    <main class="app">
+      <header class="header">
+        <img src="../../assets/dozhim-logo.png" alt="ДОЖИМ-АИ">
+        <p id="updatedAt">Рабочая панель</p>
+      </header>
+
+      <section class="project">
+        <label>
+          <span>Проект</span>
+          <input id="activeProject" type="text" autocomplete="off">
+        </label>
+        <p id="syncStatus" class="sync-status">Локальный режим</p>
+      </section>
+
+      <section class="scan">
+        <div class="section-title">
+          <div>
+            <h1 id="scanTitle">Текущая проверка</h1>
+            <p id="scanMeta">Откройте Яндекс или Wordstat и нажмите кнопку радара.</p>
+          </div>
+          <button id="refreshState" class="icon-button" title="Обновить">↻</button>
+        </div>
+        <div id="scanList" class="list"></div>
+        <div id="softGate" class="soft-gate" hidden>
+          <strong>Хотите полный отчет по конкурентам?</strong>
+          <p>Переходите в ДОЖИМ-АЙ: AI-аудит, сводка конкурентов и идеи для Директа в одном месте.</p>
+          <button id="openDozhim" class="secondary-action" type="button">Открыть ДОЖИМ-АЙ</button>
+          <button id="fullAudit" class="primary" type="button">Получить полный AI-аудит</button>
+        </div>
+        <div class="scan-actions">
+          <button id="saveScan" class="primary" type="button">Сохранить в сводку</button>
+        </div>
+      </section>
+
+      <section class="filters">
+        <label>
+          <span>Оффер</span>
+          <select id="offerFilter">
+            <option value="">Все офферы</option>
+          </select>
+        </label>
+      </section>
+
+      <nav class="tabs" aria-label="Разделы">
+        <button class="tab active" data-tab="competitors">Конкуренты</button>
+        <button class="tab" data-tab="keywords">Ключи</button>
+      </nav>
+
+      <section id="competitorsPanel" class="panel active"></section>
+      <section id="keywordsPanel" class="panel"></section>
+
+      <footer class="footer">
+        <button id="exportReport" class="primary">Собрать отчет</button>
+        <button id="openPopupHint" class="secondary-action">Открыть popup для JSON</button>
+      </footer>
+    </main>
+
+    <script src="../shared/storage.js"></script>
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

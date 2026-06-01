@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Радар конкурентов</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="app">
+      <header class="header">
+        <div class="brand">
+          <img src="../../assets/dozhim-logo.png" alt="ДОЖИМ-АИ">
+        </div>
+        <div class="title-block">
+          <h2>Радар конкурентов</h2>
+          <p id="updatedAt">Локальный MVP</p>
+        </div>
+        <button id="closePopup" class="icon-button" title="Закрыть">×</button>
+      </header>
+
+      <section class="stats">
+        <div class="stat-card">
+          <strong id="competitorsCount">0</strong>
+          <span>конкурентов</span>
+        </div>
+        <div class="stat-card">
+          <strong id="keywordsCount">0</strong>
+          <span>ключей</span>
+        </div>
+      </section>
+
+      <label class="project-field">
+        <span>Проект</span>
+        <input id="activeProject" type="text" autocomplete="off" placeholder="Например: ремонт квартир Москва">
+      </label>
+
+      <details class="advanced-box">
+        <summary>Настройки синхронизации</summary>
+        <section class="api-box">
+          <label>
+            <span>Backend API</span>
+            <input id="apiBaseUrl" type="url" autocomplete="off" placeholder="http://localhost:8787">
+          </label>
+          <div class="api-actions">
+            <button id="connectBackend" class="secondary-action" type="button">Подключить backend</button>
+            <span id="syncStatus">Локальный режим</span>
+          </div>
+        </section>
+      </details>
+
+      <section class="filters" aria-label="Фильтры">
+        <label>
+          <span>Фильтр по офферу</span>
+          <select id="offerFilter">
+            <option value="">Все офферы</option>
+          </select>
+        </label>
+        <label class="toggle-filter">
+          <input id="onlyWithHypothesis" type="checkbox">
+          <span>Показать только с идеями для теста</span>
+        </label>
+      </section>
+
+      <nav class="tabs" aria-label="Разделы">
+        <button class="tab active" data-tab="competitors">Конкуренты</button>
+        <button class="tab" data-tab="keywords">Ключи</button>
+      </nav>
+
+      <section id="competitorsPanel" class="panel active"></section>
+      <section id="keywordsPanel" class="panel"></section>
+
+      <section id="softGate" class="api-box compact" hidden>
+        <strong>Хотите полный отчет по конкурентам?</strong>
+        <p>Переходите в ДОЖИМ-АЙ: AI-аудит, наблюдение и идеи для объявлений.</p>
+        <div class="api-actions">
+          <button id="fullAudit" class="primary" type="button">Получить полный AI-аудит</button>
+          <button id="createCampaign" class="secondary-action" type="button">Создать рекламную кампанию с AI</button>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <button id="exportReport" class="primary">Собрать отчет</button>
+        <details class="advanced-box">
+          <summary>Экспорт для разработчика</summary>
+          <button id="exportJson" class="secondary-action" type="button">Экспорт JSON</button>
+        </details>
+        <button id="clearState" class="secondary-action danger">Очистить данные</button>
+      </footer>
+    </main>
+
+    <script src="../shared/storage.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

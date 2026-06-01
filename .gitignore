@@ -1,0 +1,9 @@
+extension.pem
+extension.crx
+node_modules/
+.next/
+.env
+.env.*
+*.log
+*.tsbuildinfo
+.pnpm-store/

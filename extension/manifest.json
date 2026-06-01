@@ -1,0 +1,64 @@
+{
+  "manifest_version": 3,
+  "name": "Радар конкурентов",
+  "description": "MVP-расширение для анализа объявлений конкурентов в поиске Яндекса и запросов в Wordstat.",
+  "version": "0.1.0",
+  "action": {
+    "default_title": "Радар конкурентов",
+    "default_popup": "src/popup/popup.html"
+  },
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "permissions": [
+    "storage",
+    "activeTab",
+    "downloads"
+  ],
+  "host_permissions": [
+    "http://localhost:8787/*",
+    "https://yandex.ru/*",
+    "https://*.yandex.ru/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "assets/dozhim-logo.png"
+      ],
+      "matches": [
+        "https://yandex.ru/*",
+        "https://*.yandex.ru/*"
+      ]
+    }
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://yandex.ru/search/*",
+        "https://www.yandex.ru/search/*",
+        "https://ya.ru/search/*"
+      ],
+      "js": [
+        "src/shared/storage.js",
+        "src/content/yandex-search.js"
+      ],
+      "css": [
+        "src/content/radar.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://wordstat.yandex.ru/*"
+      ],
+      "js": [
+        "src/shared/storage.js",
+        "src/content/wordstat.js"
+      ],
+      "css": [
+        "src/content/radar.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
